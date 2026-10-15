@@ -1,0 +1,23 @@
+# Visual style（模板）
+
+Quiet product UI — not a purple SaaS dashboard, not cream-serif editorial by default.
+
+## Brand surfaces
+
+Splash / onboarding / marketing: one hero brand name, one short supporting line, one dominant visual. No stats chips or overlay badges in the first viewport.
+
+## Layout
+
+「占满」= fill the **content column**, not the physical screen.
+
+- Keep consistent left/right page insets with body text
+- Images/cards align with text on both edges
+- Page gutters stay; no accidental edge-to-edge bleed unless intentional
+
+## Reading vs brand
+
+Long-form reading stays paper-white for legibility unless the product explicitly chooses dark reading.
+
+## Cards
+
+Cards are for interaction or content units; avoid card-for-everything. Prefer one job per section.
