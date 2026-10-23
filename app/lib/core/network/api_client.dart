@@ -35,6 +35,7 @@ class ApiClient {
     String? accessToken,
     bool skipAuthRefresh = false,
     bool handleExpiry = true,
+    bool authed = false,
   }) =>
       _request(
         'POST',
@@ -43,6 +44,7 @@ class ApiClient {
         accessToken: accessToken,
         skipAuthRefresh: skipAuthRefresh,
         handleExpiry: handleExpiry,
+        authed: authed,
       );
 
   Future<Map<String, dynamic>> get(
@@ -50,6 +52,7 @@ class ApiClient {
     String? accessToken,
     bool skipAuthRefresh = false,
     bool handleExpiry = true,
+    bool authed = false,
   }) =>
       _request(
         'GET',
@@ -57,6 +60,25 @@ class ApiClient {
         accessToken: accessToken,
         skipAuthRefresh: skipAuthRefresh,
         handleExpiry: handleExpiry,
+        authed: authed,
+      );
+
+  Future<Map<String, dynamic>> patch(
+    String path, {
+    Map<String, dynamic>? body,
+    String? accessToken,
+    bool skipAuthRefresh = false,
+    bool handleExpiry = true,
+    bool authed = false,
+  }) =>
+      _request(
+        'PATCH',
+        path,
+        body: body,
+        accessToken: accessToken,
+        skipAuthRefresh: skipAuthRefresh,
+        handleExpiry: handleExpiry,
+        authed: authed,
       );
 
   Future<Map<String, dynamic>> delete(
@@ -64,6 +86,7 @@ class ApiClient {
     String? accessToken,
     bool skipAuthRefresh = false,
     bool handleExpiry = true,
+    bool authed = false,
   }) =>
       _request(
         'DELETE',
@@ -71,6 +94,7 @@ class ApiClient {
         accessToken: accessToken,
         skipAuthRefresh: skipAuthRefresh,
         handleExpiry: handleExpiry,
+        authed: authed,
       );
 
   Future<Map<String, dynamic>> _request(
@@ -80,19 +104,25 @@ class ApiClient {
     String? accessToken,
     bool skipAuthRefresh = false,
     bool handleExpiry = true,
+    bool authed = false,
     bool isRetry = false,
   }) async {
+    var token = accessToken;
+    if (token == null && authed) {
+      token = (await AuthRepository().readSession())?.accessToken;
+    }
+
     final res = await _send(
       method,
       path,
       body: body,
-      accessToken: accessToken,
+      accessToken: token,
     );
 
     if (res.statusCode == 401 &&
         !skipAuthRefresh &&
         !isRetry &&
-        accessToken != null) {
+        token != null) {
       final next = await AuthRepository.tryRefreshAccessToken();
       if (next != null) {
         return _request(
@@ -102,6 +132,7 @@ class ApiClient {
           accessToken: next,
           skipAuthRefresh: skipAuthRefresh,
           handleExpiry: handleExpiry,
+          authed: authed,
           isRetry: true,
         );
       }
@@ -139,6 +170,8 @@ class ApiClient {
         return _client.get(uri, headers: headers);
       case 'DELETE':
         return _client.delete(uri, headers: headers);
+      case 'PATCH':
+        return _client.patch(uri, headers: headers, body: encoded);
       case 'POST':
       default:
         return _client.post(uri, headers: headers, body: encoded);

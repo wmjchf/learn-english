@@ -19,6 +19,31 @@ async function start() {
     console.log(
       `[auth] smsDevMode=${config.auth.smsDevMode} aliyunConfigured=${aliyunSms.isConfigured()}`,
     );
+
+    // 公共池种子
+    try {
+      const lessonPoolService = require('./services/lessonPoolService');
+      lessonPoolService.ensureSeedPool().then(() => {
+        console.log('[lesson] pool seed ready');
+      });
+    } catch (err) {
+      console.warn('[lesson] pool seed failed:', err.message);
+    }
+
+    // 每小时扫一次：用户本地 0–1 点结算昨日未打卡（冻结 / 断签）
+    const streakService = require('./services/streakService');
+    const run = async () => {
+      try {
+        const r = await streakService.runFreezeJob();
+        if (r.freeze || r.break) {
+          console.log(`[streak] freezeJob freeze=${r.freeze} break=${r.break}`);
+        }
+      } catch (err) {
+        console.warn('[streak] freezeJob failed:', err.message);
+      }
+    };
+    setTimeout(run, 15_000);
+    setInterval(run, 60 * 60 * 1000);
   });
 }
 

@@ -27,4 +27,21 @@ module.exports = {
       process.env.ALIYUN_SMS_TEMPLATE_PARAM ||
       JSON.stringify({ code: '##code##', min: '5' }),
   },
+  llm: {
+    apiKey:
+      process.env.DASHSCOPE_API_KEY || process.env.LLM_API_KEY || '',
+    baseUrl: (
+      process.env.DASHSCOPE_BASE_URL ||
+      process.env.LLM_API_BASE ||
+      'https://dashscope.aliyuncs.com/compatible-mode/v1'
+    ).replace(/\/$/, ''),
+    model:
+      process.env.ALIYUN_AI_MODEL || process.env.LLM_MODEL || 'qwen-plus',
+    /** 日课 JSON 较长；慢模型（如 27B）需更宽超时 */
+    timeoutMs: Number(process.env.LLM_TIMEOUT_MS) || 180000,
+  },
+  generate: {
+    dailyQuota: Number(process.env.GENERATE_DAILY_QUOTA) || 1,
+    retryMax: Number(process.env.LESSON_RETRY_MAX) || 1,
+  },
 };

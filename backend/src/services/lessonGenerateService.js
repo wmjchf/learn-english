@@ -1,0 +1,304 @@
+const config = require('../config');
+const { chatCompletion, parseJsonContent } = require('./llmClient');
+const { tokenizeEnglish, coverageScore, cleanLemma } = require('./lessonTokenize');
+const { pickTargetLemmas } = require('../data/bankWordPools');
+const profileService = require('./profileService');
+const planService = require('./planService');
+const bankService = require('./bankService');
+const catalogService = require('./catalogService');
+const wordDefService = require('./wordDefService');
+const wordLifecycleService = require('./wordLifecycleService');
+
+function asArray(v) {
+  return Array.isArray(v) ? v : [];
+}
+
+function asString(v, fallback = '') {
+  return v == null ? fallback : String(v).trim();
+}
+
+async function labelsFor(kind, codes) {
+  const list = [...new Set((codes || []).map(String))];
+  if (!list.length) return [];
+  const { items } = await catalogService.listByKind(kind);
+  const dict = Object.fromEntries(items.map((r) => [r.code, r.label]));
+  return list.map((c) => dict[c] || c);
+}
+
+async function resolveLabels(profile) {
+  const scenes = await labelsFor('scene', profile.scenes);
+  const interests = await labelsFor('interest', profile.interests);
+  let jobLabel = profile.jobRaw || '职场人士';
+  if (profile.jobCode) {
+    const jobs = await labelsFor('job', [profile.jobCode]);
+    jobLabel = profile.jobRaw || jobs[0] || profile.jobCode;
+  }
+  return { scenes, jobLabel, interests };
+}
+
+function buildPrompt({
+  level,
+  jobLabel,
+  scenes,
+  interests,
+  bankTitle,
+  targetLemmas,
+  reviewLemmas,
+  dayIndex,
+}) {
+  const sceneLine = scenes.length ? scenes.join('、') : '通用职场';
+  const interestLine = interests.length ? interests.join('、') : '无';
+  const reviewLine =
+    reviewLemmas?.length > 0
+      ? `\n复习词（自然复现1次即可，勿做成目标词/回填）：${reviewLemmas.join(', ')}`
+      : '';
+  return `为「词成文」写 Day ${dayIndex} 日课，只输出 JSON。
+
+画像：CEFR ${level}；职业 ${jobLabel}；场景 ${sceneLine}；兴趣 ${interestLine}；词库 ${bankTitle}
+目标词（短文+对话须覆盖，每词≤2次）：${targetLemmas.join(', ')}${reviewLine}
+
+JSON 字段：
+theme(中文主题4-8字), listLabel, title,
+scene:{title, roleBackground(中文2句), tasks[3]},
+article:{title, zhLead(中文60字内), enPlain(英文60-90词)},
+dialog:{title, zhLead, turns:[{who,en}] 3-4轮},
+cloze:[{before,sentence含________,hintZh,answer,after}] 恰好3题且 answer∈目标词
+
+要求：难度贴合 ${level}；职场自然；禁止堆词；不要 markdown/解释。`;
+}
+
+function normalizeLesson(raw, { targetLemmas, reviewLemmas = [], level, dayIndex }) {
+  const theme = asString(raw.theme, '今日职场');
+  // 列表展示用 Day N；listLabel 固定，避免模型写成「Day 1 日课」
+  const listLabel = `Day ${dayIndex}`;
+  const title = asString(raw.title || raw.article?.title, 'Today');
+  const scene = {
+    title: asString(raw.scene?.title, '① 场景导入'),
+    roleBackground: asString(raw.scene?.roleBackground || raw.scene?.role_background),
+    tasks: asArray(raw.scene?.tasks).map((t) => asString(t)).filter(Boolean).slice(0, 3),
+  };
+  if (scene.tasks.length < 2) {
+    scene.tasks = ['读懂今日短文', '听懂对话', '完成底部回填'];
+  }
+
+  const articlePlain = asString(raw.article?.enPlain || raw.article?.en_plain);
+  const article = {
+    title: asString(raw.article?.title, title),
+    zhLead: asString(raw.article?.zhLead || raw.article?.zh_lead),
+    enPlain: articlePlain,
+    enTokens: tokenizeEnglish(articlePlain, targetLemmas, reviewLemmas),
+  };
+
+  const turnsRaw = asArray(raw.dialog?.turns);
+  const turns = turnsRaw.map((t) => {
+    const en = asString(t.en);
+    return {
+      who: asString(t.who, 'A'),
+      en,
+      enTokens: tokenizeEnglish(en, targetLemmas, reviewLemmas),
+    };
+  }).filter((t) => t.en);
+
+  const dialogPlain =
+    asString(raw.dialog?.enPlain || raw.dialog?.en_plain) ||
+    turns.map((t) => `${t.who}: ${t.en}`).join(' ');
+
+  const dialog = {
+    title: asString(raw.dialog?.title, "Let's Talk"),
+    zhLead: asString(raw.dialog?.zhLead || raw.dialog?.zh_lead),
+    enPlain: dialogPlain,
+    turns,
+  };
+
+  const cloze = asArray(raw.cloze)
+    .slice(0, 3)
+    .map((c) => ({
+      before: asString(c.before),
+      sentence: asString(c.sentence),
+      hintZh: asString(c.hintZh || c.hint_zh),
+      answer: cleanLemma(asString(c.answer)),
+      after: asString(c.after),
+    }));
+
+  // 释义可缺：先用模型 defs，否则占位（点词仍可用；后续可二次补词典）
+  const defs = {};
+  const defsRaw = raw.defs && typeof raw.defs === 'object' ? raw.defs : {};
+  for (const lemma of targetLemmas) {
+    const key = Object.keys(defsRaw).find(
+      (k) => cleanLemma(k) === cleanLemma(lemma),
+    );
+    const d = key ? defsRaw[key] : null;
+    defs[lemma] = {
+      gloss: asString(d?.gloss, lemma),
+      context: asString(d?.context, `本课中的 ${lemma}`),
+      root: asString(d?.root, lemma),
+    };
+  }
+
+  return {
+    dayIndex,
+    theme,
+    listLabel,
+    title,
+    generationLevel: level,
+    scene,
+    article,
+    dialog,
+    cloze,
+    targetLemmas,
+    reviewLemmas: (reviewLemmas || []).map(cleanLemma).filter(Boolean),
+    defs,
+  };
+}
+
+function validateLesson(lesson) {
+  const errors = [];
+  if (!lesson.article?.enPlain || lesson.article.enPlain.split(/\s+/).length < 30) {
+    errors.push('短文过短');
+  }
+  if (!lesson.dialog?.turns?.length) errors.push('缺少对话');
+  if (!lesson.cloze || lesson.cloze.length < 3) errors.push('回填不足 3 题');
+
+  const targetSet = new Set(lesson.targetLemmas.map(cleanLemma));
+  for (const c of lesson.cloze || []) {
+    if (!targetSet.has(cleanLemma(c.answer))) {
+      errors.push(`回填答案不在目标词: ${c.answer}`);
+    }
+  }
+
+  const corpus = `${lesson.article.enPlain}\n${lesson.dialog.enPlain}`;
+  const cov = coverageScore(corpus, lesson.targetLemmas);
+  if (cov.ratio < 0.7) {
+    errors.push(`目标词覆盖率 ${(cov.ratio * 100).toFixed(0)}% < 70%（缺: ${cov.miss.slice(0, 5).join(', ')}）`);
+  }
+
+  return { ok: errors.length === 0, errors, coverage: cov };
+}
+
+async function generateOnce(ctx) {
+  const prompt = buildPrompt(ctx);
+  const result = await chatCompletion({
+    messages: [
+      {
+        role: 'system',
+        content: 'Output one JSON object only. No markdown.',
+      },
+      { role: 'user', content: prompt },
+    ],
+    temperature: 0.45,
+    maxTokens: 2200,
+  });
+
+  const raw = parseJsonContent(result.content);
+  const lesson = normalizeLesson(raw, {
+    targetLemmas: ctx.targetLemmas,
+    reviewLemmas: ctx.reviewLemmas || [],
+    level: ctx.level,
+    dayIndex: ctx.dayIndex,
+  });
+  const check = validateLesson(lesson);
+  return { lesson, check, usage: result.usage, model: result.model };
+}
+
+/**
+ * 按画像 + 词库生成日课包；失败重试后抛错（由调用方降级种子）。
+ */
+async function generateLessonForUser(
+  userId,
+  { dayIndex = 1, lemmaOffset = 0, targetCount = 12 } = {},
+) {
+  if (!config.llm.apiKey) {
+    const err = new Error('未配置 LLM');
+    err.status = 500;
+    err.code = 'LLM_NOT_CONFIGURED';
+    throw err;
+  }
+
+  const profile = await profileService.ensureProfile(userId);
+  const plan = await planService.getActivePlan(userId);
+  const bankId = plan?.bankId || profile.primaryBankId;
+  const bank = bankId ? await bankService.getBank(bankId) : null;
+  const bankCode = bank?.code || 'business';
+  const level = profile.generationLevel || profile.abilityLevel || 'B1';
+  const reviewLemmas = await wordLifecycleService.pickDueForLesson(userId, {
+    limit: wordLifecycleService.IN_ARTICLE_REVIEW_CAP,
+  });
+  const newCount = Math.max(
+    8,
+    Math.min(15, Number(targetCount) || 12) - reviewLemmas.length,
+  );
+  const cursorOrd = (plan?.cursorOrd || 0) + lemmaOffset;
+  const targetLemmas = pickTargetLemmas(bankCode, cursorOrd, newCount).filter(
+    (l) => !reviewLemmas.includes(cleanLemma(l)),
+  );
+
+  const { scenes, jobLabel, interests } = await resolveLabels(profile);
+
+  const ctx = {
+    level,
+    jobLabel,
+    scenes,
+    interests,
+    bankTitle: bank?.title || '商务英语',
+    targetLemmas,
+    reviewLemmas,
+    dayIndex,
+  };
+
+  const retryMax = Math.max(1, config.generate.retryMax || 1);
+  let lastErrors = [];
+  for (let attempt = 1; attempt <= retryMax; attempt++) {
+    try {
+      const { lesson, check, usage, model } = await generateOnce(ctx);
+      if (check.ok) {
+        // 生成后强制补齐目标词释义（短调用；失败保留占位）
+        try {
+          const weak = (lesson.targetLemmas || []).filter((l) =>
+            wordDefService.isWeakDef(lesson.defs?.[l], l),
+          );
+          if (weak.length) {
+            const patch = await wordDefService.enrichDefsBatch({
+              lemmas: weak,
+              articlePlain: lesson.article?.enPlain,
+              dialogPlain: lesson.dialog?.enPlain,
+              theme: lesson.theme,
+            });
+            lesson.defs = wordDefService.mergeDefs(lesson.defs, patch);
+          }
+        } catch (err) {
+          console.warn('[lesson] enrich defs failed:', err.message);
+        }
+        return {
+          lesson,
+          bankId: bank?.id || null,
+          level,
+          meta: {
+            model,
+            usage,
+            attempt,
+            coverage: check.coverage.ratio,
+            targetLemmas,
+          },
+        };
+      }
+      lastErrors = check.errors;
+      ctx._lastErrors = check.errors;
+    } catch (err) {
+      lastErrors = [err.message];
+      // 超时 / 网关错误不再重试，避免连等数分钟
+      if (err.code === 'LLM_TIMEOUT' || err.code === 'LLM_ERROR') throw err;
+      if (attempt === retryMax) throw err;
+    }
+  }
+
+  const err = new Error(`日课生成未通过校验: ${lastErrors.join('; ')}`);
+  err.status = 502;
+  err.code = 'LESSON_VALIDATE_FAILED';
+  throw err;
+}
+
+module.exports = {
+  generateLessonForUser,
+  validateLesson,
+  normalizeLesson,
+};

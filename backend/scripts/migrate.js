@@ -12,7 +12,7 @@ async function main() {
     MYSQL_DATABASE,
   } = process.env;
 
-  const dbName = MYSQL_DATABASE || 'app_starter';
+  const dbName = MYSQL_DATABASE || 'english_learn';
   const conn = await mysql.createConnection({
     host: MYSQL_HOST || '127.0.0.1',
     port: Number(MYSQL_PORT) || 3306,
@@ -32,18 +32,22 @@ async function main() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
 
-  const name = '001_schema.sql';
-  const [rows] = await conn.query(
-    'SELECT 1 FROM schema_migrations WHERE name = ? LIMIT 1',
-    [name],
-  );
-  if (rows.length) {
-    console.log(`[db:migrate] skip ${name} (already applied)`);
-  } else {
-    const sql = fs.readFileSync(
-      path.join(__dirname, '../sql', name),
-      'utf8',
+  const sqlDir = path.join(__dirname, '../sql');
+  const files = fs
+    .readdirSync(sqlDir)
+    .filter((f) => f.endsWith('.sql'))
+    .sort();
+
+  for (const name of files) {
+    const [rows] = await conn.query(
+      'SELECT 1 FROM schema_migrations WHERE name = ? LIMIT 1',
+      [name],
     );
+    if (rows.length) {
+      console.log(`[db:migrate] skip ${name} (already applied)`);
+      continue;
+    }
+    const sql = fs.readFileSync(path.join(sqlDir, name), 'utf8');
     await conn.query(sql);
     await conn.query('INSERT INTO schema_migrations (name) VALUES (?)', [name]);
     console.log(`[db:migrate] applied ${name}`);

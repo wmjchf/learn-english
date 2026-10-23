@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:app_starter/core/config/app_brand.dart';
 import 'package:app_starter/core/network/api_client.dart';
 import 'package:app_starter/features/auth/auth_repository.dart';
-import 'package:app_starter/features/auth/login_page.dart';
+import 'package:app_starter/features/onboarding/guide_page.dart';
+import 'package:app_starter/features/onboarding/onboarding_nav.dart';
+import 'package:app_starter/features/profile/profile_repository.dart';
 import 'package:app_starter/features/shell/app_navigator.dart';
-import 'package:app_starter/features/shell/home_page.dart';
 
 class AppStarterApp extends StatelessWidget {
   const AppStarterApp({super.key});
@@ -15,7 +16,7 @@ class AppStarterApp extends StatelessWidget {
       title: AppBrand.name,
       navigatorKey: AppNavigator.key,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2F6FED)),
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2563EB)),
         useMaterial3: true,
       ),
       home: const _BootPage(),
@@ -41,12 +42,25 @@ class _BootPageState extends State<_BootPage> {
     await ApiClient.warmup();
     final session = await AuthRepository().readSession();
     if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(
-        builder: (_) =>
-            session == null ? const LoginPage() : const HomePage(),
-      ),
-    );
+    if (session == null) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(builder: (_) => const GuidePage()),
+      );
+      return;
+    }
+    try {
+      final profile = await ProfileRepository().fetchMe();
+      if (!mounted) return;
+      goOnboardingRoot(context, profile);
+    } catch (_) {
+      if (!mounted) return;
+      // 会话本地有但拉画像失败：先进兴趣，由页面内提示网络错误
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(
+          builder: (_) => pageForOnboardingStep('interest'),
+        ),
+      );
+    }
   }
 
   @override

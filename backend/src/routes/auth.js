@@ -1,6 +1,7 @@
 const express = require('express');
 const { isValidPhone, normalizePhone } = require('../utils/phone');
 const authService = require('../services/authService');
+const profileService = require('../services/profileService');
 const { requireAuth } = require('../middleware/auth');
 
 const router = express.Router();
@@ -29,7 +30,8 @@ router.post('/sms/login', async (req, res, next) => {
       return res.status(400).json({ message: '请输入验证码' });
     }
     const result = await authService.loginWithSms(phone, code);
-    return res.json(result);
+    const profile = await profileService.ensureProfile(result.user.id);
+    return res.json({ ...result, profile });
   } catch (err) {
     return next(err);
   }
@@ -54,6 +56,7 @@ router.get('/me', requireAuth, async (req, res, next) => {
     if (!user) {
       return res.status(401).json({ message: '未登录' });
     }
+    const profile = await profileService.ensureProfile(user.id);
     return res.json({
       user: {
         id: user.id,
@@ -61,6 +64,7 @@ router.get('/me', requireAuth, async (req, res, next) => {
         nickname: user.nickname,
         avatarUrl: user.avatar_url,
       },
+      profile,
     });
   } catch (err) {
     return next(err);

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:app_starter/core/network/api_client.dart';
-import 'package:app_starter/features/auth/login_page.dart';
+import 'package:app_starter/features/onboarding/guide_page.dart';
+import 'package:app_starter/features/profile/user_profile.dart';
 import 'package:app_starter/features/shell/app_navigator.dart';
 
 class AuthSession {
@@ -18,6 +19,13 @@ class AuthSession {
   final int userId;
   final String phone;
   final String nickname;
+}
+
+class LoginResult {
+  const LoginResult({required this.session, this.profile});
+
+  final AuthSession session;
+  final UserProfile? profile;
 }
 
 class AuthRepository {
@@ -43,7 +51,7 @@ class AuthRepository {
     return (json['message'] as String?) ?? '验证码已发送';
   }
 
-  Future<AuthSession> login({
+  Future<LoginResult> login({
     required String phone,
     required String code,
   }) async {
@@ -61,7 +69,13 @@ class AuthRepository {
       nickname: (user['nickname'] as String?) ?? '',
     );
     await saveSession(session);
-    return session;
+    final profileJson = json['profile'];
+    return LoginResult(
+      session: session,
+      profile: profileJson is Map<String, dynamic>
+          ? UserProfile.fromJson(profileJson)
+          : null,
+    );
   }
 
   Future<void> saveSession(AuthSession session) async {
@@ -151,7 +165,7 @@ class AuthRepository {
       final nav = AppNavigator.key.currentState;
       if (nav == null) return;
       nav.pushAndRemoveUntil(
-        MaterialPageRoute<void>(builder: (_) => const LoginPage()),
+        MaterialPageRoute<void>(builder: (_) => const GuidePage()),
         (_) => false,
       );
       AppNavigator.showSnackBar(
