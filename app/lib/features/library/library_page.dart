@@ -71,23 +71,16 @@ class _LibraryPageState extends State<LibraryPage> {
 
   Future<void> _openLesson(int id) async {
     try {
-      AppToast.loading(context, '打开文章…');
       final lesson = await _lessonRepo.getById(id);
       if (!mounted) return;
-      AppToast.hide(context);
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => LessonArticlePage(lesson: lesson),
         ),
       );
       if (mounted) _load();
-    } catch (e) {
-      if (!mounted) return;
-      AppToast.hide(context);
-      AppToast.show(
-        context,
-        e is ApiException ? e.message : '打开失败',
-      );
+    } catch (_) {
+      /* 静默失败 */
     }
   }
 

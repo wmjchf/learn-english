@@ -122,17 +122,39 @@ async function getById(lessonId, userId) {
   return parseContent(rows[0]);
 }
 
+function localDateKey(value) {
+  if (value == null) return '';
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  return String(value).slice(0, 10);
+}
+
+async function applyDayIndex(id, day) {
+  const label = `Day ${day}`;
+  await pool.query(
+    `UPDATE lessons
+     SET day_index = :day,
+         list_label = :label,
+         content_json = JSON_SET(
+           COALESCE(content_json, JSON_OBJECT()),
+           '$.dayIndex', :day,
+           '$.listLabel', :label
+         )
+     WHERE id = :id`,
+    { day, label, id },
+  );
+}
+
 /**
  * Day 序号 = 学习日序号（按 local_date），不是「第几篇生成文章」。
  * - 该日已有日课 → 复用当天的 day_index（换一篇 / 手动再生成仍是同一天）
  * - 新的一天 → 历史最大 day_index + 1
  */
 async function resolveDayIndex(userId, localDate) {
-  await repairCollapsedDayIndexes(userId);
+  await repairDayIndexes(userId);
   const [sameDay] = await pool.query(
     `SELECT day_index FROM lessons
      WHERE user_id = :userId AND local_date = :localDate
-     ORDER BY id DESC LIMIT 1`,
+     ORDER BY id ASC LIMIT 1`,
     { userId, localDate },
   );
   if (sameDay.length) {
@@ -154,34 +176,59 @@ async function nextDayIndex(userId) {
 }
 
 /**
- * 历史 bug：多篇都写成 day_index=1 时，按创建时间重排为 Day 1..N。
+ * 修正 day_index：
+ * 1) 同一 local_date 的多篇文章必须同一 Day（手动生成/换一篇不算新一天）
+ * 2) 仅当「跨多天却全是 Day 1」时，按日期序重排（修历史塌缩）；同日多篇全是 1 不拆开
  */
-async function repairCollapsedDayIndexes(userId) {
+async function repairDayIndexes(userId) {
   const [rows] = await pool.query(
-    `SELECT id, day_index FROM lessons
+    `SELECT id, day_index, local_date, created_at FROM lessons
      WHERE user_id = :userId
      ORDER BY COALESCE(local_date, DATE(created_at)) ASC, id ASC`,
     { userId },
   );
   if (rows.length <= 1) return;
-  const allOne = rows.every((r) => Number(r.day_index) === 1);
-  if (!allOne) return;
-  for (let i = 0; i < rows.length; i++) {
-    const day = i + 1;
-    const label = `Day ${day}`;
-    await pool.query(
-      `UPDATE lessons
-       SET day_index = :day,
-           list_label = :label,
-           content_json = JSON_SET(
-             COALESCE(content_json, JSON_OBJECT()),
-             '$.dayIndex', :day,
-             '$.listLabel', :label
-           )
-       WHERE id = :id`,
-      { day, label, id: rows[i].id },
-    );
+
+  // —— 同日对齐：取该日最小 day_index 作为正本 ——
+  const byDate = new Map();
+  for (const r of rows) {
+    const key = localDateKey(r.local_date) || localDateKey(r.created_at);
+    if (!byDate.has(key)) byDate.set(key, []);
+    byDate.get(key).push(r);
   }
+  for (const group of byDate.values()) {
+    if (group.length <= 1) continue;
+    const day = Math.max(
+      1,
+      Math.min(...group.map((r) => Number(r.day_index) || 1)),
+    );
+    for (const r of group) {
+      if (Number(r.day_index) !== day) {
+        await applyDayIndex(r.id, day);
+        r.day_index = day;
+      }
+    }
+  }
+
+  // —— 跨日全是 1：按日期序赋 Day 1..N（每天内共用同一序号） ——
+  const dateKeys = [...byDate.keys()].filter(Boolean).sort();
+  if (dateKeys.length <= 1) return;
+  const stillAllOne = rows.every((r) => Number(r.day_index) === 1);
+  if (!stillAllOne) return;
+
+  for (let i = 0; i < dateKeys.length; i++) {
+    const day = i + 1;
+    for (const r of byDate.get(dateKeys[i]) || []) {
+      if (Number(r.day_index) !== day) {
+        await applyDayIndex(r.id, day);
+      }
+    }
+  }
+}
+
+/** @deprecated 兼容旧名 */
+async function repairCollapsedDayIndexes(userId) {
+  return repairDayIndexes(userId);
 }
 
 /**
@@ -190,7 +237,7 @@ async function repairCollapsedDayIndexes(userId) {
 async function getTodayLesson(userId) {
   const profile = await profileService.ensureProfile(userId);
   const localDate = todayLocalDate(profile.timezone);
-  await repairCollapsedDayIndexes(userId);
+  await repairDayIndexes(userId);
 
   const [rows] = await pool.query(
     `SELECT * FROM lessons
@@ -428,7 +475,7 @@ async function knownCountsByLesson(userId, rows) {
  * 文章库列表。status: all | unread | done
  */
 async function listLessons(userId, { status = 'all' } = {}) {
-  await repairCollapsedDayIndexes(userId);
+  await repairDayIndexes(userId);
   const profile = await profileService.ensureProfile(userId);
   const today = todayLocalDate(profile.timezone);
 

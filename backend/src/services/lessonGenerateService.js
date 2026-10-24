@@ -58,17 +58,48 @@ function buildPrompt({
 目标词须覆盖（每词≤2次）：${targetLemmas.join(', ')}${reviewLine}
 
 字段：
-theme(中文≤8字),title,
+theme(中文标题 4-10 字：必须概括本篇短文的具体事件/话题，内容不同则 theme 必须不同；禁止「今日职场」「商务英语」「职场沟通」等空泛词),
+title(英文短标题，同样要具体、贴合本篇内容),
 scene:{roleBackground(中文1-2句),tasks[3]},
-article:{zhLead(中文≤40字),enPlain(英文50-70词)},
+article:{title(可贴合短文的英文题),zhLead(中文≤40字，点出本篇具体事),enPlain(英文50-70词)},
 dialog:{zhLead,turns:[{who,en}] 恰好3轮},
 cloze:[{sentence含________,hintZh,answer,before,after}] 恰好8题；answer∈目标词且互不重复
 
-难度贴合 ${level}；职场自然；禁止堆词。`;
+难度贴合 ${level}；职场自然；禁止堆词；先想清本篇具体故事再写 theme/title。`;
+}
+
+const GENERIC_THEMES = new Set([
+  '今日职场',
+  '职场英语',
+  '商务英语',
+  '职场沟通',
+  '商务沟通',
+  '今日学习',
+  '日常工作',
+  '办公室',
+  '工作日常',
+]);
+
+/** 用中文导读抽一句作标题兜底，避免空泛 theme */
+function themeFromLead(zhLead) {
+  const lead = asString(zhLead)
+    .replace(/[""「」]/g, '')
+    .trim();
+  if (!lead) return '';
+  const cut = lead.split(/[，。！？；、\n]/)[0] || lead;
+  return cut.slice(0, 10).trim();
+}
+
+function refineTheme(rawTheme, zhLead) {
+  let theme = asString(rawTheme).slice(0, 12);
+  if (!theme || GENERIC_THEMES.has(theme) || theme.length < 2) {
+    const fromLead = themeFromLead(zhLead);
+    if (fromLead) theme = fromLead;
+  }
+  return theme || '今日短文';
 }
 
 function normalizeLesson(raw, { targetLemmas, reviewLemmas = [], level, dayIndex }) {
-  const theme = asString(raw.theme, '今日职场');
   // 列表展示用 Day N；listLabel 固定，避免模型写成「Day 1 日课」
   const listLabel = `Day ${dayIndex}`;
   const title = asString(raw.title || raw.article?.title, 'Today');
@@ -82,9 +113,11 @@ function normalizeLesson(raw, { targetLemmas, reviewLemmas = [], level, dayIndex
   }
 
   const articlePlain = asString(raw.article?.enPlain || raw.article?.en_plain);
+  const zhLead = asString(raw.article?.zhLead || raw.article?.zh_lead);
+  const theme = refineTheme(raw.theme, zhLead);
   const article = {
     title: asString(raw.article?.title, title),
-    zhLead: asString(raw.article?.zhLead || raw.article?.zh_lead),
+    zhLead,
     enPlain: articlePlain,
     enTokens: tokenizeEnglish(articlePlain, targetLemmas, reviewLemmas),
   };

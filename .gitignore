@@ -13,6 +13,8 @@ backend/node_modules/
 backend/.env
 backend/npm-debug.log*
 backend/pnpm-debug.log*
+backend/gloss_bank.sql
+backend/*.dump.sql
 
 # IDE / OS
 .idea/

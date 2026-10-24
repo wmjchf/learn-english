@@ -12,7 +12,8 @@
     "start": "node src/index.js",
     "db:init": "node scripts/init-db.js",
     "db:migrate": "node scripts/migrate.js",
-    "db:seed-words": "node scripts/seed-bank-words.js"
+    "db:seed-words": "node scripts/seed-bank-words.js",
+    "db:seed-gloss": "node scripts/seed-word-gloss.js"
   },
   "license": "ISC",
   "dependencies": {
