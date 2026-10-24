@@ -86,7 +86,7 @@ async function getToday(userId) {
       subtitle:
         dueCount > 0
           ? `文内复现 ${inLessonReview} 个，其余闪卡`
-          : '暂无到期生词',
+          : '读文章时点「不认识」会排到这里',
     },
     plan: {
       dayIndex,

@@ -69,7 +69,7 @@ class _LessonDialogPageState extends State<LessonDialogPage> {
       content: lesson.content,
       tts: _tts,
       lessonId: lesson.id,
-      onKnow: (lemma) async {
+      onKnow: (lemma, {String? gloss}) async {
         setState(() {
           _known.add(lemma);
           _tempHl.remove(lemma);
@@ -87,15 +87,18 @@ class _LessonDialogPageState extends State<LessonDialogPage> {
           }
         }
       },
-      onUnknownHighlight: (lemma) async {
+      onUnknownHighlight: (lemma, {String? gloss}) async {
         setState(() => _tempHl.add(lemma));
         _syncTemp();
-        final gloss = lesson.content.defFor(lemma)?.gloss;
+        final resolved =
+            (gloss != null && gloss.isNotEmpty)
+                ? gloss
+                : lesson.content.defFor(lemma)?.gloss;
         try {
           await _words.markVocab(
             lemma,
             lessonId: lesson.id,
-            gloss: gloss,
+            gloss: resolved,
           );
           if (mounted) AppToast.show(context, '已加入生词本');
         } catch (e) {

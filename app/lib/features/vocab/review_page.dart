@@ -27,10 +27,6 @@ class _ReviewPageState extends State<ReviewPage> {
   int _forgot = 0;
 
   static const _bg = Color(0xFFF8FAFC);
-  static const _text = Color(0xFF0F172A);
-  static const _muted = Color(0xFF64748B);
-  static const _blue = Color(0xFF2563EB);
-  static const _border = Color(0xFFE2E8F0);
 
   @override
   void initState() {
@@ -73,9 +69,20 @@ class _ReviewPageState extends State<ReviewPage> {
   VocabItem? get _current =>
       _index < _items.length ? _items[_index] : null;
 
+  void _toggleReveal() {
+    if (_current == null || _busy) return;
+    setState(() => _revealed = !_revealed);
+  }
+
+  Future<void> _speakCurrent() async {
+    final item = _current;
+    if (item == null) return;
+    await _tts.speak(item.lemma);
+  }
+
   Future<void> _answer(bool know) async {
     final item = _current;
-    if (item == null || _busy) return;
+    if (item == null || _busy || !_revealed) return;
     setState(() => _busy = true);
     try {
       await _repo.answerReview(lemma: item.lemma, know: know);
@@ -123,154 +130,405 @@ class _ReviewPageState extends State<ReviewPage> {
 
   @override
   Widget build(BuildContext context) {
+    final total = _items.length;
+    final showing = _current != null;
+
     return Scaffold(
       backgroundColor: _bg,
-      appBar: AppBar(
-        backgroundColor: _bg,
-        elevation: 0,
-        surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(Icons.chevron_left, color: _blue, size: 32),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: Text(
-          _items.isEmpty || _current == null
-              ? '复习'
-              : '复习 ${_index + 1} / ${_items.length}',
-          style: const TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w600,
-            color: _text,
-          ),
-        ),
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-          : _error != null
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
+      body: SafeArea(
+        child: _loading
+            ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+            : _error != null
+                ? _ErrorView(message: _error!, onRetry: _load)
+                : Column(
                     children: [
-                      Text(_error!),
-                      TextButton(onPressed: _load, child: const Text('重试')),
+                      _TopBar(
+                        title: '复习',
+                        counter: total > 0
+                            ? (showing
+                                ? '${_index + 1} / $total'
+                                : '$total / $total')
+                            : null,
+                        progress: total == 0
+                            ? 0
+                            : showing
+                                ? (_index + 1) / total
+                                : 1,
+                        onBack: () => Navigator.of(context).pop(),
+                      ),
+                      Expanded(
+                        child: showing
+                            ? _CardSession(
+                                item: _current!,
+                                revealed: _revealed,
+                                busy: _busy,
+                                onToggle: _toggleReveal,
+                                onSpeak: _speakCurrent,
+                                onForgot: () => _answer(false),
+                                onKnow: () => _answer(true),
+                              )
+                            : _DoneView(
+                                known: _known,
+                                forgot: _forgot,
+                                onClose: () => Navigator.of(context).pop(),
+                              ),
+                      ),
                     ],
                   ),
-                )
-              : _current == null
-                  ? _DoneView(
-                      known: _known,
-                      forgot: _forgot,
-                      onClose: () => Navigator.of(context).pop(),
-                    )
-                  : Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Expanded(
-                            child: GestureDetector(
-                              onTap: () => setState(() => _revealed = true),
-                              child: Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.all(28),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(24),
-                                  border: Border.all(color: _border),
-                                ),
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                      _current!.lemma,
-                                      textAlign: TextAlign.center,
-                                      style: const TextStyle(
-                                        fontSize: 36,
-                                        fontWeight: FontWeight.w700,
-                                        color: _text,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 16),
-                                    if (_revealed) ...[
-                                      Text(
-                                        _current!.gloss?.isNotEmpty == true
-                                            ? _current!.gloss!
-                                            : (_current!.sourceTitle != null
-                                                ? '出自《${_current!.sourceTitle}》'
-                                                : '点「认识」继续'),
-                                        textAlign: TextAlign.center,
-                                        style: const TextStyle(
-                                          fontSize: 18,
-                                          color: _muted,
-                                          height: 1.4,
-                                        ),
-                                      ),
-                                    ] else
-                                      const Text(
-                                        '点按卡片看释义',
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          color: _metaColor,
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: _busy ? null : () => _answer(false),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: const Color(0xFFDC2626),
-                                    side: const BorderSide(color: _border),
-                                    minimumSize: const Size.fromHeight(52),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(14),
-                                    ),
-                                  ),
-                                  child: const Text(
-                                    '不认识',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: FilledButton(
-                                  onPressed: _busy ? null : () => _answer(true),
-                                  style: FilledButton.styleFrom(
-                                    backgroundColor: _blue,
-                                    minimumSize: const Size.fromHeight(52),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(14),
-                                    ),
-                                  ),
-                                  child: const Text(
-                                    '认识',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
+      ),
     );
   }
 }
 
-const _metaColor = Color(0xFF94A3B8);
+class _TopBar extends StatelessWidget {
+  const _TopBar({
+    required this.title,
+    required this.progress,
+    required this.onBack,
+    this.counter,
+  });
+
+  final String title;
+  final String? counter;
+  final double progress;
+  final VoidCallback onBack;
+
+  static const _text = Color(0xFF0F172A);
+  static const _blue = Color(0xFF2563EB);
+  static const _track = Color(0xFFE2E8F0);
+
+  @override
+  Widget build(BuildContext context) {
+    final p = progress.clamp(0.0, 1.0);
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 4, 16, 0),
+          child: Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.chevron_left, color: _blue, size: 32),
+                onPressed: onBack,
+              ),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                    color: _text,
+                  ),
+                ),
+              ),
+              if (counter != null)
+                Text(
+                  counter!,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: _blue,
+                  ),
+                ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(99),
+            child: LinearProgressIndicator(
+              value: p,
+              minHeight: 4,
+              backgroundColor: _track,
+              color: _blue,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CardSession extends StatelessWidget {
+  const _CardSession({
+    required this.item,
+    required this.revealed,
+    required this.busy,
+    required this.onToggle,
+    required this.onSpeak,
+    required this.onForgot,
+    required this.onKnow,
+  });
+
+  final VocabItem item;
+  final bool revealed;
+  final bool busy;
+  final VoidCallback onToggle;
+  final VoidCallback onSpeak;
+  final VoidCallback onForgot;
+  final VoidCallback onKnow;
+
+  static const _blue = Color(0xFF2563EB);
+  static const _border = Color(0xFFE2E8F0);
+  static const _red = Color(0xFFDC2626);
+  static const _meta = Color(0xFF94A3B8);
+
+  @override
+  Widget build(BuildContext context) {
+    final canAnswer = revealed && !busy;
+    final gloss = item.gloss?.trim();
+    final glossText =
+        (gloss != null && gloss.isNotEmpty) ? gloss : '暂无释义';
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            flex: 11,
+            child: GestureDetector(
+              onTap: busy ? null : onToggle,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(28),
+                  border: Border.all(color: _border),
+                ),
+                child: Column(
+                  children: [
+                    Align(
+                      alignment: Alignment.topRight,
+                      child: IconButton(
+                        onPressed: busy ? null : onSpeak,
+                        icon: const Icon(Icons.volume_up_rounded),
+                        color: _blue,
+                        tooltip: '朗读',
+                      ),
+                    ),
+                    Expanded(
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 220),
+                        switchInCurve: Curves.easeOut,
+                        switchOutCurve: Curves.easeIn,
+                        child: revealed
+                            ? _BackFace(
+                                key: const ValueKey('back'),
+                                lemma: item.lemma,
+                                gloss: glossText,
+                                sourceTitle: item.sourceTitle,
+                              )
+                            : _FrontFace(
+                                key: const ValueKey('front'),
+                                lemma: item.lemma,
+                              ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Opacity(
+            opacity: canAnswer ? 1 : 0.4,
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: canAnswer ? onForgot : null,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _red,
+                      disabledForegroundColor: _red.withValues(alpha: 0.5),
+                      side: BorderSide(
+                        color: canAnswer ? _red.withValues(alpha: 0.35) : _border,
+                      ),
+                      minimumSize: const Size.fromHeight(54),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Text(
+                      '不认识',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: canAnswer ? onKnow : null,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _blue,
+                      disabledBackgroundColor: _blue.withValues(alpha: 0.35),
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size.fromHeight(54),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Text(
+                      '认识',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (!revealed) ...[
+            const SizedBox(height: 10),
+            const Text(
+              '先翻开卡片再作答',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, color: _meta),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _FrontFace extends StatelessWidget {
+  const _FrontFace({super.key, required this.lemma});
+
+  final String lemma;
+
+  static const _text = Color(0xFF0F172A);
+  static const _meta = Color(0xFF94A3B8);
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          lemma,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 40,
+            fontWeight: FontWeight.w700,
+            color: _text,
+            height: 1.2,
+            letterSpacing: -0.5,
+          ),
+        ),
+        const SizedBox(height: 20),
+        const Text(
+          '轻点卡片看释义',
+          style: TextStyle(fontSize: 14, color: _meta),
+        ),
+      ],
+    );
+  }
+}
+
+class _BackFace extends StatelessWidget {
+  const _BackFace({
+    super.key,
+    required this.lemma,
+    required this.gloss,
+    this.sourceTitle,
+  });
+
+  final String lemma;
+  final String gloss;
+  final String? sourceTitle;
+
+  static const _text = Color(0xFF0F172A);
+  static const _muted = Color(0xFF64748B);
+  static const _meta = Color(0xFF94A3B8);
+  static const _blueSoft = Color(0xFFEFF6FF);
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          lemma,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.w700,
+            color: _text,
+          ),
+        ),
+        const SizedBox(height: 20),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+          decoration: BoxDecoration(
+            color: _blueSoft,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Text(
+            gloss,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+              color: _text,
+              height: 1.4,
+            ),
+          ),
+        ),
+        if (sourceTitle != null && sourceTitle!.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Text(
+            '出自《$sourceTitle》',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 13, color: _meta),
+          ),
+        ],
+        const SizedBox(height: 12),
+        const Text(
+          '再点可收回',
+          style: TextStyle(fontSize: 12, color: _muted),
+        ),
+      ],
+    );
+  }
+}
+
+class _ErrorView extends StatelessWidget {
+  const _ErrorView({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(message, textAlign: TextAlign.center),
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: onRetry,
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF2563EB),
+              ),
+              child: const Text('重试'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _DoneView extends StatelessWidget {
   const _DoneView({
@@ -283,43 +541,119 @@ class _DoneView extends StatelessWidget {
   final int forgot;
   final VoidCallback onClose;
 
+  static const _text = Color(0xFF0F172A);
+  static const _muted = Color(0xFF64748B);
+  static const _blue = Color(0xFF2563EB);
+  static const _blueSoft = Color(0xFFEFF6FF);
+  static const _redSoft = Color(0xFFFEF2F2);
+  static const _red = Color(0xFFDC2626);
+
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(32),
+      padding: const EdgeInsets.fromLTRB(28, 24, 28, 32),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
+          const Spacer(),
           const Text(
             '本组复习完成',
             style: TextStyle(
-              fontSize: 22,
+              fontSize: 24,
               fontWeight: FontWeight.w700,
-              color: Color(0xFF0F172A),
+              color: _text,
             ),
           ),
-          const SizedBox(height: 12),
-          Text(
-            '认识 $known · 不认识 $forgot',
-            style: const TextStyle(fontSize: 15, color: Color(0xFF64748B)),
+          const SizedBox(height: 8),
+          const Text(
+            '到期词已记一圈，明天还会再见。',
+            style: TextStyle(fontSize: 14, color: _muted),
           ),
           const SizedBox(height: 28),
+          Row(
+            children: [
+              Expanded(
+                child: _StatBlock(
+                  label: '认识',
+                  value: '$known',
+                  bg: _blueSoft,
+                  valueColor: _blue,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _StatBlock(
+                  label: '不认识',
+                  value: '$forgot',
+                  bg: _redSoft,
+                  valueColor: _red,
+                ),
+              ),
+            ],
+          ),
+          const Spacer(),
           SizedBox(
             width: double.infinity,
-            height: 48,
+            height: 52,
             child: FilledButton(
               onPressed: onClose,
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF2563EB),
+                backgroundColor: _blue,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(14),
                 ),
               ),
               child: const Text(
                 '完成',
-                style: TextStyle(fontWeight: FontWeight.w700),
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatBlock extends StatelessWidget {
+  const _StatBlock({
+    required this.label,
+    required this.value,
+    required this.bg,
+    required this.valueColor,
+  });
+
+  final String label;
+  final String value;
+  final Color bg;
+  final Color valueColor;
+
+  static const _muted = Color(0xFF64748B);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 22),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 32,
+              fontWeight: FontWeight.w700,
+              color: valueColor,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 13, color: _muted),
           ),
         ],
       ),

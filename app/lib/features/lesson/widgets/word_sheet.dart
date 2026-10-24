@@ -10,8 +10,8 @@ Future<void> showWordSheet({
   required LessonToken token,
   required LessonContent content,
   required LessonTts tts,
-  required void Function(String lemma) onKnow,
-  required void Function(String lemma) onUnknownHighlight,
+  required void Function(String lemma, {String? gloss}) onKnow,
+  required void Function(String lemma, {String? gloss}) onUnknownHighlight,
   int? lessonId,
 }) {
   final lemma = token.lemma.isEmpty
@@ -37,12 +37,12 @@ Future<void> showWordSheet({
         initialDef: localDef,
         lessonId: lessonId,
         ttsSpeak: () => tts.speak(speakText),
-        onKnow: () {
-          onKnow(lemma);
+        onKnow: (gloss) {
+          onKnow(lemma, gloss: gloss);
           Navigator.of(ctx).pop();
         },
-        onUnknown: () {
-          onUnknownHighlight(lemma);
+        onUnknown: (gloss) {
+          onUnknownHighlight(lemma, gloss: gloss);
           Navigator.of(ctx).pop();
         },
       );
@@ -68,8 +68,8 @@ class _WordSheetBody extends StatefulWidget {
   final LessonDef? initialDef;
   final int? lessonId;
   final VoidCallback ttsSpeak;
-  final VoidCallback onKnow;
-  final VoidCallback onUnknown;
+  final void Function(String? gloss) onKnow;
+  final void Function(String? gloss) onUnknown;
 
   @override
   State<_WordSheetBody> createState() => _WordSheetBodyState();
@@ -272,7 +272,20 @@ class _WordSheetBodyState extends State<_WordSheetBody> {
                 child: SizedBox(
                   height: 48,
                   child: FilledButton(
-                    onPressed: _isTarget ? widget.onKnow : widget.onUnknown,
+                    onPressed: () {
+                      final g = _gloss.trim();
+                      final gloss = (g.isEmpty ||
+                              g == '加载释义中…' ||
+                              g == '（暂无释义）' ||
+                              g.toLowerCase() == widget.lemma.toLowerCase())
+                          ? null
+                          : g;
+                      if (_isTarget) {
+                        widget.onKnow(gloss);
+                      } else {
+                        widget.onUnknown(gloss);
+                      }
+                    },
                     style: FilledButton.styleFrom(
                       backgroundColor: _blue,
                       shape: RoundedRectangleBorder(

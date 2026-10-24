@@ -247,7 +247,16 @@ class LessonContent {
     );
   }
 
-  LessonDef? defFor(String lemma) => defs[lemma];
+  LessonDef? defFor(String lemma) {
+    final key = lemma.trim().toLowerCase();
+    if (key.isEmpty) return null;
+    final direct = defs[key] ?? defs[lemma];
+    if (direct != null) return direct;
+    for (final e in defs.entries) {
+      if (e.key.toLowerCase() == key) return e.value;
+    }
+    return null;
+  }
 }
 
 class Lesson {

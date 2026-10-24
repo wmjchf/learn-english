@@ -58,6 +58,8 @@ class VocabItem {
     this.sourceLessonId,
     this.sourceTitle,
     this.gloss,
+    this.context,
+    this.root,
   });
 
   final String lemma;
@@ -69,6 +71,8 @@ class VocabItem {
   final int? sourceLessonId;
   final String? sourceTitle;
   final String? gloss;
+  final String? context;
+  final String? root;
 
   factory VocabItem.fromJson(Map<String, dynamic>? json) {
     return VocabItem(
@@ -81,6 +85,8 @@ class VocabItem {
       sourceLessonId: (json?['sourceLessonId'] as num?)?.toInt(),
       sourceTitle: json?['sourceTitle'] as String?,
       gloss: json?['gloss'] as String?,
+      context: json?['context'] as String?,
+      root: json?['root'] as String?,
     );
   }
 }

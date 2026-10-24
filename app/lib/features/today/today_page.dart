@@ -188,79 +188,13 @@ class _TodayPageState extends State<TodayPage> {
                       onStart: _startReading,
                     ),
                         const SizedBox(height: 20),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    '到期生词 ${_data!.review.dueCount}',
-                                    style: const TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w500,
-                                      color: _text,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    _data!.review.subtitle,
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: _metaLight,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            SizedBox(
-                              height: 41,
-                              child: FilledButton(
-                                onPressed: _data!.review.dueCount > 0
-                                    ? _goReview
-                                    : null,
-                                style: FilledButton.styleFrom(
-                                  backgroundColor: _blue,
-                                  disabledBackgroundColor:
-                                      const Color(0xFFBFDBFE),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 18,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                ),
-                                child: const Text(
-                                  '去复习',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
+                        _ReviewRow(
+                          dueCount: _data!.review.dueCount,
+                          subtitle: _data!.review.subtitle,
+                          onReview: _goReview,
                         ),
-                        const SizedBox(height: 16),
-                        const Divider(height: 1, color: Color(0xFFE2E8F0)),
-                        const SizedBox(height: 16),
-                        Text(
-                          _data!.plan.dayLine,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: _meta,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          _data!.plan.metaLine,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: _metaLight,
-                          ),
-                        ),
+                        const SizedBox(height: 12),
+                        _PaceCard(plan: _data!.plan),
                       ],
                     ),
                   ),
@@ -315,6 +249,231 @@ class _GeneratingCard extends StatelessWidget {
               color: Color(0xFF94A3B8),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PaceCard extends StatelessWidget {
+  const _PaceCard({required this.plan});
+
+  final TodayPlanMeta plan;
+
+  static const _text = Color(0xFF0F172A);
+  static const _meta = Color(0xFF64748B);
+  static const _metaLight = Color(0xFF94A3B8);
+  static const _blue = Color(0xFF2563EB);
+  static const _track = Color(0xFFE2E8F0);
+  static const _border = Color(0xFFE2E8F0);
+
+  @override
+  Widget build(BuildContext context) {
+    final total = plan.totalDays <= 0 ? 1 : plan.totalDays;
+    final day = plan.dayIndex.clamp(1, total);
+    final progress = (day / total).clamp(0.0, 1.0);
+    final bank = plan.bankTitle.trim().isEmpty ? '词库' : plan.bankTitle.trim();
+    final pace = plan.paceLabel.trim().isEmpty ? '节奏正常' : plan.paceLabel.trim();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              const Expanded(
+                child: Text(
+                  '学习节奏',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: _text,
+                  ),
+                ),
+              ),
+              Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(
+                      text: 'Day $day',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: _blue,
+                        height: 1,
+                      ),
+                    ),
+                    TextSpan(
+                      text: ' / $total',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: _metaLight,
+                        height: 1,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(99),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 6,
+              backgroundColor: _track,
+              color: _blue,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  bank,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: _meta,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  pace,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: _meta,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReviewRow extends StatelessWidget {
+  const _ReviewRow({
+    required this.dueCount,
+    required this.subtitle,
+    required this.onReview,
+  });
+
+  final int dueCount;
+  final String subtitle;
+  final VoidCallback onReview;
+
+  static const _text = Color(0xFF0F172A);
+  static const _meta = Color(0xFF64748B);
+  static const _metaLight = Color(0xFF94A3B8);
+  static const _blue = Color(0xFF2563EB);
+  static const _blueSoft = Color(0xFFEFF6FF);
+  static const _border = Color(0xFFE2E8F0);
+
+  @override
+  Widget build(BuildContext context) {
+    final hasDue = dueCount > 0;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
+      decoration: BoxDecoration(
+        color: hasDue ? _blueSoft : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: hasDue ? const Color(0xFFBFDBFE) : _border),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  hasDue ? '到期生词 $dueCount' : '到期生词',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: hasDue ? _text : _meta,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  hasDue ? subtitle : '今天没有要复习的词',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: _metaLight,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          if (hasDue)
+            SizedBox(
+              height: 40,
+              child: FilledButton(
+                onPressed: onReview,
+                style: FilledButton.styleFrom(
+                  backgroundColor: _blue,
+                  padding: const EdgeInsets.symmetric(horizontal: 18),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  '去复习',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            )
+          else
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.check_rounded, size: 16, color: _meta),
+                  SizedBox(width: 4),
+                  Text(
+                    '已清零',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: _meta,
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );

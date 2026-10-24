@@ -83,7 +83,12 @@ class _LessonClozePageState extends State<LessonClozePage> {
     if (!allOk) {
       for (final lemma in wrongLemmas) {
         try {
-          await _words.markVocab(lemma, lessonId: widget.lesson.id);
+          final gloss = widget.lesson.content.defFor(lemma)?.gloss;
+          await _words.markVocab(
+            lemma,
+            lessonId: widget.lesson.id,
+            gloss: gloss,
+          );
         } catch (_) {}
       }
       return;

@@ -37,6 +37,53 @@ function normalizeLemma(raw) {
     .replace(/[^a-z'-]/g, '');
 }
 
+function parseLessonContent(raw) {
+  if (!raw) return {};
+  if (typeof raw === 'object') return raw;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
+
+function pickDefEntry(defs, lemma) {
+  if (!defs || typeof defs !== 'object' || !lemma) return null;
+  if (defs[lemma]) return defs[lemma];
+  const key = Object.keys(defs).find((k) => normalizeLemma(k) === lemma);
+  return key ? defs[key] : null;
+}
+
+/** @returns {{gloss:string|null, context:string|null, root:string|null}} */
+function defFromDefs(defs, lemma) {
+  const entry = pickDefEntry(defs, lemma);
+  if (!entry) {
+    return { gloss: null, context: null, root: null };
+  }
+  let gloss = String(entry.gloss || '').trim().slice(0, 256);
+  if (!gloss || gloss.toLowerCase() === lemma) gloss = null;
+  let context = String(entry.context || '').trim().slice(0, 512);
+  if (!context || context === `本课中的 ${lemma}`) context = null;
+  let root = String(entry.root || '').trim().slice(0, 256);
+  if (!root) root = null;
+  return { gloss, context, root };
+}
+
+function glossFromDefs(defs, lemma) {
+  return defFromDefs(defs, lemma).gloss;
+}
+
+/** 从出处日课 defs 取中文释义（写入或列表回填） */
+async function resolveGlossFromLesson(lessonId, lemma) {
+  if (!lessonId || !lemma) return null;
+  const [rows] = await pool.query(
+    `SELECT content_json FROM lessons WHERE id = :id LIMIT 1`,
+    { id: lessonId },
+  );
+  const content = parseLessonContent(rows[0]?.content_json);
+  return glossFromDefs(content.defs, lemma);
+}
+
 function mapRow(row) {
   if (!row) return null;
   return {
@@ -53,6 +100,8 @@ function mapRow(row) {
     sourceLessonId: row.source_lesson_id,
     bankId: row.bank_id,
     gloss: row.gloss || null,
+    context: null,
+    root: null,
     sourceTitle: row.source_title || null,
   };
 }
@@ -152,9 +201,11 @@ async function markVocab(userId, lemmaRaw, { lessonId, gloss } = {}) {
   const today = todayLocalDate(profile.timezone);
   const next = addDays(today, SRS_INTERVALS[0]);
 
-  const existing = await getWord(userId, lemma);
-  if (existing && (existing.status === 'mastered' || existing.status === 'known')) {
-    // 已掌握再点不认识：打回待巩固
+  let glossText = gloss ? String(gloss).trim().slice(0, 256) : '';
+  if (!glossText || glossText.toLowerCase() === lemma) {
+    glossText =
+      (await resolveGlossFromLesson(lessonId, lemma)) ||
+      '';
   }
 
   await pool.query(
@@ -174,7 +225,7 @@ async function markVocab(userId, lemmaRaw, { lessonId, gloss } = {}) {
       lemma,
       next,
       lessonId: lessonId || null,
-      gloss: gloss ? String(gloss).slice(0, 256) : null,
+      gloss: glossText || null,
     },
   );
   return getWord(userId, lemma);
@@ -244,6 +295,17 @@ async function markVocabMany(userId, lemmas, { lessonId } = {}) {
 
 function formatItem(row, today) {
   const word = mapRow(row);
+  if (row.content_json) {
+    const fromLesson = defFromDefs(
+      parseLessonContent(row.content_json).defs,
+      word.lemma,
+    );
+    if (!word.gloss) word.gloss = fromLesson.gloss;
+    word.context = fromLesson.context;
+    word.root = fromLesson.root || word.lemma;
+  } else if (!word.root) {
+    word.root = word.lemma;
+  }
   const bucket = bucketOf(word.status);
   const due = dueLabel(word.nextReviewAt, today);
   const parts = [statusLabel(word.status)];
@@ -273,7 +335,7 @@ async function listVocab(userId, { bucket = 'consolidating' } = {}) {
   });
 
   const [rows] = await pool.query(
-    `SELECT w.*, l.title AS source_title
+    `SELECT w.*, l.title AS source_title, l.content_json
      FROM user_words w
      LEFT JOIN lessons l ON l.id = w.source_lesson_id
      WHERE w.user_id = :userId AND w.status IN (${placeholders})
@@ -318,7 +380,7 @@ async function listDueReviews(userId) {
   const profile = await profileService.ensureProfile(userId);
   const today = todayLocalDate(profile.timezone);
   const [rows] = await pool.query(
-    `SELECT w.*, l.title AS source_title
+    `SELECT w.*, l.title AS source_title, l.content_json
      FROM user_words w
      LEFT JOIN lessons l ON l.id = w.source_lesson_id
      WHERE w.user_id = :userId
