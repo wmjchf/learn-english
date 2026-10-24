@@ -8,6 +8,7 @@
  *   node scripts/seed-word-gloss.js --force          # 已有详解也重跑
  *   node scripts/seed-word-gloss.js --dry-run        # 只统计不写库
  *
+ * 待处理按 bank_words.ord 推进（非字母序）。
  * 需要：DASHSCOPE_API_KEY，且已 migrate 015_word_gloss
  */
 require('dotenv').config();
@@ -49,8 +50,9 @@ function sleep(ms) {
 
 async function loadLemmas({ bank, force, limit }) {
   const params = {};
+  // 用 MIN(ord) 聚合，兼容 MySQL DISTINCT + ORDER BY 限制
   let sql = `
-    SELECT DISTINCT b.lemma
+    SELECT b.lemma, MIN(b.\`ord\`) AS ord_min, MIN(b.id) AS id_min
     FROM bank_words b
     LEFT JOIN word_gloss g ON g.lemma = b.lemma
     WHERE b.lemma IS NOT NULL AND b.lemma <> ''
@@ -67,18 +69,16 @@ async function loadLemmas({ bank, force, limit }) {
       OR g.example_en IS NULL OR g.example_en = ''
     )`;
   }
-  sql += ' ORDER BY b.lemma ASC';
+  sql += ' GROUP BY b.lemma';
+  // 跟打乱后的学习序一致，避免按首字母先灌详解
+  sql += ' ORDER BY ord_min ASC, id_min ASC';
   if (limit > 0) {
     sql += ' LIMIT :lim';
     params.lim = limit;
   }
 
   const [rows] = await pool.query(sql, params);
-  return [
-    ...new Set(
-      rows.map((r) => cleanLemma(r.lemma)).filter(Boolean),
-    ),
-  ];
+  return rows.map((r) => cleanLemma(r.lemma)).filter(Boolean);
 }
 
 async function main() {

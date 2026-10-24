@@ -3,25 +3,44 @@ const { cleanLemma } = require('./lessonTokenize');
 
 /**
  * 从 bank_words 按 ord 环形抽取目标词。
+ * 仅取已有 LLM 详解（word_gloss：gloss + sense + example_en）的词。
  */
 async function pickTargetLemmas(bankCode, cursorOrd = 0, count = 12) {
   const code = bankCode || 'business';
   const [rows] = await pool.query(
-    `SELECT lemma FROM bank_words
-     WHERE bank_code = :code
-     ORDER BY \`ord\` ASC, id ASC`,
+    `SELECT b.lemma
+     FROM bank_words b
+     INNER JOIN word_gloss g ON g.lemma = b.lemma
+     WHERE b.bank_code = :code
+       AND g.gloss IS NOT NULL AND TRIM(g.gloss) <> ''
+       AND g.sense IS NOT NULL AND TRIM(g.sense) <> ''
+       AND g.example_en IS NOT NULL AND TRIM(g.example_en) <> ''
+     ORDER BY b.\`ord\` ASC, b.id ASC`,
     { code },
   );
   if (!rows.length) {
-    // 商务库为空时再试 business；仍空则报错提示灌库
+    // 本库无详解词时再试 business
     if (code !== 'business') {
       return pickTargetLemmas('business', cursorOrd, count);
     }
+    // 区分：词库空 vs 详解未灌
+    const [all] = await pool.query(
+      `SELECT COUNT(*) AS c FROM bank_words WHERE bank_code = :code`,
+      { code },
+    );
+    if (!Number(all[0]?.c || 0)) {
+      const err = new Error(
+        '词库 bank_words 为空，请先执行: node scripts/seed-bank-words.js',
+      );
+      err.status = 500;
+      err.code = 'BANK_WORDS_EMPTY';
+      throw err;
+    }
     const err = new Error(
-      '词库 bank_words 为空，请先执行: node scripts/seed-bank-words.js',
+      '没有带详细释义的词可成文，请先执行: pnpm db:seed-gloss',
     );
     err.status = 500;
-    err.code = 'BANK_WORDS_EMPTY';
+    err.code = 'WORD_GLOSS_EMPTY';
     throw err;
   }
   const lemmas = rows.map((r) => r.lemma).filter(Boolean);
