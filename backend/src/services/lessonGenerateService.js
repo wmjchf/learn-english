@@ -45,6 +45,7 @@ function buildPrompt({
   targetLemmas,
   reviewLemmas,
   dayIndex,
+  repairHint,
 }) {
   const sceneLine = scenes.length ? scenes.join('、') : '通用职场';
   const interestLine = interests.length ? interests.join('、') : '无';
@@ -52,20 +53,26 @@ function buildPrompt({
     reviewLemmas?.length > 0
       ? `\n复习词（自然复现1次即可，勿做成目标词/回填）：${reviewLemmas.join(', ')}`
       : '';
+  const repairLine = repairHint ? `\n上次未通过：${repairHint}。请修正。` : '';
+  const targets = (targetLemmas || []).join(', ');
   return `写 Day ${dayIndex} 日课 JSON（紧凑，勿解释）。
 
 画像：${level}；${jobLabel}；场景 ${sceneLine}；兴趣 ${interestLine}；${bankTitle}
-目标词须覆盖（每词≤2次）：${targetLemmas.join(', ')}${reviewLine}
+目标词（必须全部出现在短文 enPlain 或对话 turns 中，每词1-2次，勿堆砌列表）：${targets}${reviewLine}${repairLine}
+
+硬性要求：
+- 短文+对话合计须覆盖全部目标词（覆盖率≥70%，尽量100%）
+- 先列好要用到的目标词再写故事，再写 theme/title
 
 字段：
 theme(中文标题 4-10 字：必须概括本篇短文的具体事件/话题，内容不同则 theme 必须不同；禁止「今日职场」「商务英语」「职场沟通」等空泛词),
 title(英文短标题，同样要具体、贴合本篇内容),
 scene:{roleBackground(中文1-2句),tasks[3]},
-article:{title(可贴合短文的英文题),zhLead(中文≤40字，点出本篇具体事),enPlain(英文50-70词)},
-dialog:{zhLead,turns:[{who,en}] 恰好3轮},
+article:{title(可贴合短文的英文题),zhLead(中文≤40字，点出本篇具体事),enPlain(英文55-80词，自然写入目标词)},
+dialog:{zhLead,turns:[{who,en}] 恰好3轮，对话里也可写入剩余目标词},
 cloze:[{sentence含________,hintZh,answer,before,after}] 恰好8题；answer∈目标词且互不重复
 
-难度贴合 ${level}；职场自然；禁止堆词；先想清本篇具体故事再写 theme/title。`;
+难度贴合 ${level}；职场自然；禁止只列单词；先想清本篇具体故事再写 theme/title。`;
 }
 
 const GENERIC_THEMES = new Set([
@@ -193,6 +200,37 @@ function padCloze(cloze, targetLemmas) {
   return out.slice(0, 8);
 }
 
+/**
+ * 模型常漏写目标词：把未覆盖词补进短文末句，保证覆盖率≥70%。
+ * 优先补足到门槛即可，避免文末过长。
+ */
+function ensureTargetCoverage(lesson) {
+  const targets = lesson.targetLemmas || [];
+  if (!targets.length) return coverageScore('', []);
+
+  const corpusOf = () =>
+    `${lesson.article?.enPlain || ''}\n${lesson.dialog?.enPlain || ''}`;
+  let cov = coverageScore(corpusOf(), targets);
+  if (cov.ratio >= 0.7) return cov;
+
+  const need = Math.ceil(targets.length * 0.7) - cov.hit.length;
+  const toAdd = cov.miss.slice(0, Math.max(need, 0));
+  if (!toAdd.length) return cov;
+
+  const bridge =
+    toAdd.length === 1
+      ? ` Keep the word "${toAdd[0]}" in mind today.`
+      : ` Keep these words in mind today: ${toAdd.join(', ')}.`;
+  const plain = asString(lesson.article?.enPlain).replace(/\s+$/, '');
+  lesson.article.enPlain = `${plain}${bridge}`;
+  lesson.article.enTokens = tokenizeEnglish(
+    lesson.article.enPlain,
+    targets,
+    lesson.reviewLemmas || [],
+  );
+  return coverageScore(corpusOf(), targets);
+}
+
 function validateLesson(lesson) {
   const errors = [];
   if (!lesson.article?.enPlain || lesson.article.enPlain.split(/\s+/).length < 25) {
@@ -247,6 +285,7 @@ async function generateOnce(ctx) {
     level: ctx.level,
     dayIndex: ctx.dayIndex,
   });
+  ensureTargetCoverage(lesson);
   const check = validateLesson(lesson);
   return {
     lesson,
@@ -280,9 +319,10 @@ async function generateLessonForUser(
   const reviewLemmas = await wordLifecycleService.pickDueForLesson(userId, {
     limit: wordLifecycleService.IN_ARTICLE_REVIEW_CAP,
   });
+  // 目标词略少更易写进 60–80 词短文（回填仍要 8 个不重复答案）
   const newCount = Math.max(
     8,
-    Math.min(15, Number(targetCount) || 12) - reviewLemmas.length,
+    Math.min(12, Number(targetCount) || 10) - reviewLemmas.length,
   );
   const cursorOrd = (plan?.cursorOrd || 0) + lemmaOffset;
   const picked = await bankWordService.pickTargetLemmas(
@@ -305,9 +345,10 @@ async function generateLessonForUser(
     targetLemmas,
     reviewLemmas,
     dayIndex,
+    repairHint: '',
   };
 
-  const retryMax = Math.max(1, config.generate.retryMax || 1);
+  const retryMax = Math.max(1, config.generate.retryMax || 2);
   let lastErrors = [];
   for (let attempt = 1; attempt <= retryMax; attempt++) {
     try {
@@ -315,7 +356,7 @@ async function generateLessonForUser(
       if (check.ok) {
         await wordDictService.attachDefsToLesson(lesson);
         console.log(
-          `[lesson] ok day=${dayIndex} attempt=${attempt} llm=${latencyMs || '?'}ms model=${model}`,
+          `[lesson] ok day=${dayIndex} attempt=${attempt} llm=${latencyMs || '?'}ms model=${model} cov=${((check.coverage?.ratio || 0) * 100).toFixed(0)}%`,
         );
         return {
           lesson,
@@ -333,7 +374,10 @@ async function generateLessonForUser(
       }
       lastErrors = check.errors;
       console.warn(`[lesson] validate fail attempt=${attempt}:`, check.errors);
-      ctx._lastErrors = check.errors;
+      const miss = check.coverage?.miss?.slice(0, 8) || [];
+      ctx.repairHint = miss.length
+        ? `缺目标词 ${miss.join(', ')}；${check.errors.slice(0, 2).join('；')}`
+        : check.errors.slice(0, 3).join('；');
     } catch (err) {
       lastErrors = [err.message];
       // 超时 / 网关错误不再重试，避免连等数分钟
@@ -352,4 +396,5 @@ module.exports = {
   generateLessonForUser,
   validateLesson,
   normalizeLesson,
+  ensureTargetCoverage,
 };

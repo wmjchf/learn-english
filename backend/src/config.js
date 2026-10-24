@@ -43,7 +43,7 @@ module.exports = {
   },
   generate: {
     dailyQuota: Number(process.env.GENERATE_DAILY_QUOTA) || 1,
-    retryMax: Number(process.env.LESSON_RETRY_MAX) || 1,
+    retryMax: Number(process.env.LESSON_RETRY_MAX) || 2,
   },
   /** 百炼 Qwen-TTS（朗读） */
   tts: {
