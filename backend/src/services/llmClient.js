@@ -2,13 +2,14 @@ const config = require('../config');
 
 /**
  * DashScope OpenAI-compatible chat completions.
- * @param {{ messages: Array<{role:string,content:string}>, temperature?: number, maxTokens?: number }} opts
+ * @param {{ messages: Array<{role:string,content:string}>, temperature?: number, maxTokens?: number, jsonMode?: boolean }} opts
  */
 async function chatCompletion({
   messages,
   temperature = 0.4,
   maxTokens = 2048,
   model,
+  jsonMode = false,
 } = {}) {
   if (!config.llm.apiKey) {
     const err = new Error('未配置 DASHSCOPE_API_KEY');
@@ -17,10 +18,29 @@ async function chatCompletion({
     throw err;
   }
 
+  const resolvedModel = model || config.llm.model;
   const url = `${config.llm.baseUrl}/chat/completions`;
   const controller = new AbortController();
-  const timeoutMs = config.llm.timeoutMs || 180000;
+  const timeoutMs = config.llm.timeoutMs || 90000;
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  const body = {
+    model: resolvedModel,
+    messages,
+    temperature,
+    max_tokens: maxTokens,
+  };
+
+  // Qwen3 默认可能开思考链，日课成文关掉以提速
+  if (config.llm.enableThinking === false) {
+    body.enable_thinking = false;
+  }
+
+  if (jsonMode) {
+    body.response_format = { type: 'json_object' };
+  }
+
+  const started = Date.now();
   let res;
   try {
     res = await fetch(url, {
@@ -29,12 +49,7 @@ async function chatCompletion({
         'Content-Type': 'application/json',
         Authorization: `Bearer ${config.llm.apiKey}`,
       },
-      body: JSON.stringify({
-        model: model || config.llm.model,
-        messages,
-        temperature,
-        max_tokens: maxTokens,
-      }),
+      body: JSON.stringify(body),
       signal: controller.signal,
     });
   } catch (err) {
@@ -69,11 +84,19 @@ async function chatCompletion({
     throw err;
   }
 
+  const ms = Date.now() - started;
+  const usage = data.usage || null;
+  console.log(
+    `[llm] ${resolvedModel} ${ms}ms` +
+      (usage?.total_tokens ? ` tokens=${usage.total_tokens}` : ''),
+  );
+
   return {
     content: String(content),
-    model: data.model || config.llm.model,
-    usage: data.usage || null,
+    model: data.model || resolvedModel,
+    usage,
     raw: data,
+    latencyMs: ms,
   };
 }
 

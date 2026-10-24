@@ -52,19 +52,19 @@ function buildPrompt({
     reviewLemmas?.length > 0
       ? `\n复习词（自然复现1次即可，勿做成目标词/回填）：${reviewLemmas.join(', ')}`
       : '';
-  return `为「词成文」写 Day ${dayIndex} 日课，只输出 JSON。
+  return `写 Day ${dayIndex} 日课 JSON（紧凑，勿解释）。
 
-画像：CEFR ${level}；职业 ${jobLabel}；场景 ${sceneLine}；兴趣 ${interestLine}；词库 ${bankTitle}
-目标词（短文+对话须覆盖，每词≤2次）：${targetLemmas.join(', ')}${reviewLine}
+画像：${level}；${jobLabel}；场景 ${sceneLine}；兴趣 ${interestLine}；${bankTitle}
+目标词须覆盖（每词≤2次）：${targetLemmas.join(', ')}${reviewLine}
 
-JSON 字段：
-theme(中文主题4-8字), listLabel, title,
-scene:{title, roleBackground(中文2句), tasks[3]},
-article:{title, zhLead(中文60字内), enPlain(英文60-90词)},
-dialog:{title, zhLead, turns:[{who,en}] 3-4轮},
-cloze:[{before,sentence含________,hintZh,answer,after}] 恰好8题且 answer∈目标词、每题答案互不重复
+字段：
+theme(中文≤8字),title,
+scene:{roleBackground(中文1-2句),tasks[3]},
+article:{zhLead(中文≤40字),enPlain(英文50-70词)},
+dialog:{zhLead,turns:[{who,en}] 恰好3轮},
+cloze:[{sentence含________,hintZh,answer,before,after}] 恰好8题；answer∈目标词且互不重复
 
-要求：难度贴合 ${level}；职场自然；禁止堆词；不要 markdown/解释。`;
+难度贴合 ${level}；职场自然；禁止堆词。`;
 }
 
 function normalizeLesson(raw, { targetLemmas, reviewLemmas = [], level, dayIndex }) {
@@ -110,7 +110,7 @@ function normalizeLesson(raw, { targetLemmas, reviewLemmas = [], level, dayIndex
     turns,
   };
 
-  const cloze = asArray(raw.cloze)
+  let cloze = asArray(raw.cloze)
     .slice(0, 8)
     .map((c) => ({
       before: asString(c.before),
@@ -119,6 +119,7 @@ function normalizeLesson(raw, { targetLemmas, reviewLemmas = [], level, dayIndex
       answer: cleanLemma(asString(c.answer)),
       after: asString(c.after),
     }));
+  cloze = padCloze(cloze, targetLemmas);
 
   // 释义由 bank_words 查库灌入，不依赖模型
   const defs = {};
@@ -139,9 +140,29 @@ function normalizeLesson(raw, { targetLemmas, reviewLemmas = [], level, dayIndex
   };
 }
 
+/** 模型少给几题时用目标词补齐，减少整篇重跑 */
+function padCloze(cloze, targetLemmas) {
+  const out = [...(cloze || [])].filter((c) => c.answer);
+  const used = new Set(out.map((c) => cleanLemma(c.answer)));
+  for (const raw of targetLemmas || []) {
+    if (out.length >= 8) break;
+    const a = cleanLemma(raw);
+    if (!a || used.has(a)) continue;
+    used.add(a);
+    out.push({
+      before: '',
+      sentence: `Please write the word ________ in this sentence.`,
+      hintZh: a,
+      answer: a,
+      after: '',
+    });
+  }
+  return out.slice(0, 8);
+}
+
 function validateLesson(lesson) {
   const errors = [];
-  if (!lesson.article?.enPlain || lesson.article.enPlain.split(/\s+/).length < 30) {
+  if (!lesson.article?.enPlain || lesson.article.enPlain.split(/\s+/).length < 25) {
     errors.push('短文过短');
   }
   if (!lesson.dialog?.turns?.length) errors.push('缺少对话');
@@ -177,12 +198,13 @@ async function generateOnce(ctx) {
     messages: [
       {
         role: 'system',
-        content: 'Output one JSON object only. No markdown.',
+        content: 'Return one JSON object only.',
       },
       { role: 'user', content: prompt },
     ],
-    temperature: 0.45,
-    maxTokens: 2200,
+    temperature: 0.35,
+    maxTokens: 1600,
+    jsonMode: true,
   });
 
   const raw = parseJsonContent(result.content);
@@ -193,7 +215,13 @@ async function generateOnce(ctx) {
     dayIndex: ctx.dayIndex,
   });
   const check = validateLesson(lesson);
-  return { lesson, check, usage: result.usage, model: result.model };
+  return {
+    lesson,
+    check,
+    usage: result.usage,
+    model: result.model,
+    latencyMs: result.latencyMs,
+  };
 }
 
 /**
@@ -250,9 +278,12 @@ async function generateLessonForUser(
   let lastErrors = [];
   for (let attempt = 1; attempt <= retryMax; attempt++) {
     try {
-      const { lesson, check, usage, model } = await generateOnce(ctx);
+      const { lesson, check, usage, model, latencyMs } = await generateOnce(ctx);
       if (check.ok) {
         await wordDictService.attachDefsToLesson(lesson);
+        console.log(
+          `[lesson] ok day=${dayIndex} attempt=${attempt} llm=${latencyMs || '?'}ms model=${model}`,
+        );
         return {
           lesson,
           bankId: bank?.id || null,
@@ -261,12 +292,14 @@ async function generateLessonForUser(
             model,
             usage,
             attempt,
+            latencyMs,
             coverage: check.coverage.ratio,
             targetLemmas,
           },
         };
       }
       lastErrors = check.errors;
+      console.warn(`[lesson] validate fail attempt=${attempt}:`, check.errors);
       ctx._lastErrors = check.errors;
     } catch (err) {
       lastErrors = [err.message];

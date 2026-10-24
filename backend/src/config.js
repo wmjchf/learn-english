@@ -36,9 +36,10 @@ module.exports = {
       'https://dashscope.aliyuncs.com/compatible-mode/v1'
     ).replace(/\/$/, ''),
     model:
-      process.env.ALIYUN_AI_MODEL || process.env.LLM_MODEL || 'qwen-plus',
-    /** 日课 JSON 较长；慢模型（如 27B）需更宽超时 */
+      process.env.ALIYUN_AI_MODEL || process.env.LLM_MODEL || 'qwen3.8-27b',
     timeoutMs: Number(process.env.LLM_TIMEOUT_MS) || 180000,
+    /** false=关闭 Qwen3 思考链（成文场景） */
+    enableThinking: process.env.LLM_ENABLE_THINKING === 'true',
   },
   generate: {
     dailyQuota: Number(process.env.GENERATE_DAILY_QUOTA) || 1,

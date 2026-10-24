@@ -6,15 +6,19 @@ import 'package:app_starter/features/lesson/lesson_models.dart';
 import 'package:app_starter/features/lesson/lesson_repository.dart';
 import 'package:app_starter/features/lesson/lesson_tts.dart';
 import 'package:app_starter/features/lesson/word_repository.dart';
+import 'package:app_starter/features/lesson/widgets/lesson_generating_view.dart';
 import 'package:app_starter/features/lesson/widgets/token_text.dart';
 import 'package:app_starter/features/lesson/widgets/word_sheet.dart';
 import 'package:app_starter/features/shell/main_shell.dart';
 
 /// 日课短文：对齐 Figma Phone/日课短文。
 class LessonArticlePage extends StatefulWidget {
-  const LessonArticlePage({super.key, this.lesson});
+  const LessonArticlePage({super.key, this.lesson, this.firstDay = false});
 
   final Lesson? lesson;
+
+  /// 画像完成后进第一篇：用更完整的生成中界面。
+  final bool firstDay;
 
   @override
   State<LessonArticlePage> createState() => _LessonArticlePageState();
@@ -183,20 +187,35 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_loading) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF8FAFC),
+        body: LessonGeneratingView(
+          title: widget.firstDay || widget.lesson == null
+              ? '正在写你的 Day 1'
+              : '正在准备今日文章',
+          subtitle: widget.firstDay || widget.lesson == null
+              ? '按水平 · 职业 · 场景 · 词库定制第一篇'
+              : '按你的画像生成今日短文与回填',
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: _bg,
       body: SafeArea(
-        child: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : _error != null
-                ? _ErrorBody(message: _error!, onRetry: () {
-                    setState(() {
-                      _loading = true;
-                      _error = null;
-                    });
-                    _boot();
-                  })
-                : _buildBody(),
+        child: _error != null
+            ? _ErrorBody(
+                message: _error!,
+                onRetry: () {
+                  setState(() {
+                    _loading = true;
+                    _error = null;
+                  });
+                  _boot();
+                },
+              )
+            : _buildBody(),
       ),
     );
   }

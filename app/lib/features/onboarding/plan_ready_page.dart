@@ -19,7 +19,9 @@ class PlanReadyPage extends StatelessWidget {
 
   void _enter(BuildContext context) {
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute<void>(builder: (_) => const LessonArticlePage()),
+      MaterialPageRoute<void>(
+        builder: (_) => const LessonArticlePage(firstDay: true),
+      ),
       (_) => false,
     );
   }
