@@ -37,6 +37,7 @@ dependencies:
   http: ^1.6.0
   shared_preferences: ^2.5.5
   flutter_tts: ^4.2.5
+  just_audio: ^0.10.5
   flutter_svg: ^2.3.0
 
 dev_dependencies:

@@ -58,8 +58,13 @@ class VocabItem {
     this.sourceLessonId,
     this.sourceTitle,
     this.gloss,
+    this.pos,
+    this.sense,
     this.context,
     this.root,
+    this.exampleEn,
+    this.exampleZh,
+    this.rich = false,
   });
 
   final String lemma;
@@ -71,8 +76,13 @@ class VocabItem {
   final int? sourceLessonId;
   final String? sourceTitle;
   final String? gloss;
+  final String? pos;
+  final String? sense;
   final String? context;
   final String? root;
+  final String? exampleEn;
+  final String? exampleZh;
+  final bool rich;
 
   factory VocabItem.fromJson(Map<String, dynamic>? json) {
     return VocabItem(
@@ -85,8 +95,13 @@ class VocabItem {
       sourceLessonId: (json?['sourceLessonId'] as num?)?.toInt(),
       sourceTitle: json?['sourceTitle'] as String?,
       gloss: json?['gloss'] as String?,
+      pos: json?['pos'] as String?,
+      sense: json?['sense'] as String?,
       context: json?['context'] as String?,
       root: json?['root'] as String?,
+      exampleEn: (json?['exampleEn'] ?? json?['example_en']) as String?,
+      exampleZh: (json?['exampleZh'] ?? json?['example_zh']) as String?,
+      rich: json?['rich'] == true,
     );
   }
 }

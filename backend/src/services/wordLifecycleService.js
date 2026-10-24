@@ -344,6 +344,57 @@ async function fillMissingGlossFromDict(items) {
   return items;
 }
 
+/** 是否已有 LLM 详解（释义 + 用法 + 例句） */
+function isRichGloss(g) {
+  if (!g) return false;
+  const gloss = String(g.gloss || '').trim();
+  const sense = String(g.sense || '').trim();
+  const exampleEn = String(g.exampleEn || g.example_en || '').trim();
+  if (!gloss || !sense || !exampleEn) return false;
+  return true;
+}
+
+/**
+ * 挂上 word_gloss 详解；onlyRich=true 时丢掉没有详解的词。
+ * 缺详解的 lemma 会异步补全（下次可见）。
+ */
+async function attachRichGloss(items, { onlyRich = true, enrichMissing = true } = {}) {
+  if (!items?.length) return [];
+  const wordGlossService = require('./wordGlossService');
+  const lemmas = items.map((w) => w.lemma).filter(Boolean);
+  const map = await wordGlossService.getMany(lemmas);
+  const missing = [];
+  const out = [];
+  for (const w of items) {
+    const g = map[w.lemma];
+    if (!isRichGloss(g)) {
+      missing.push(w.lemma);
+      if (onlyRich) continue;
+    }
+    const pos = g?.pos || null;
+    const glossBody = g?.gloss || w.gloss || null;
+    out.push({
+      ...w,
+      gloss: glossBody
+        ? pos
+          ? `${pos} ${glossBody}`
+          : glossBody
+        : w.gloss,
+      pos,
+      sense: g?.sense || null,
+      exampleEn: g?.exampleEn || null,
+      exampleZh: g?.exampleZh || null,
+      context: g?.context || w.context || null,
+      root: g?.root || w.root || w.lemma,
+      rich: isRichGloss(g),
+    });
+  }
+  if (enrichMissing && missing.length) {
+    wordGlossService.ensureManyAsync(missing);
+  }
+  return out;
+}
+
 /**
  * 生词本列表 + 今日到期摘要。
  * @param {string} bucket learning|consolidating|mastered
@@ -404,7 +455,7 @@ async function listVocab(userId, { bucket = 'consolidating' } = {}) {
   };
 }
 
-/** 到期闪卡队列（不含已塞进文章配额的展示，MVP 返回全部到期） */
+/** 到期闪卡队列：仅含已有 LLM 详解的词；缺详解后台异步补 */
 async function listDueReviews(userId) {
   const profile = await profileService.ensureProfile(userId);
   const today = todayLocalDate(profile.timezone);
@@ -420,17 +471,22 @@ async function listDueReviews(userId) {
      LIMIT 50`,
     { userId, today },
   );
-  const items = await fillMissingGlossFromDict(
+  const base = await fillMissingGlossFromDict(
     rows.map((r) => formatItem(r, today)),
   );
+  const items = await attachRichGloss(base, {
+    onlyRich: true,
+    enrichMissing: true,
+  });
   return {
     dueCount: rows.length,
+    readyCount: items.length,
     items,
   };
 }
 
 /**
- * 闪卡作答：know=true 推进 SRS；false 重置。
+ * 闪卡作答：know=true 推进 SRS；false 重置。仅待巩固。
  */
 async function answerReview(userId, lemmaRaw, { know } = {}) {
   const lemma = normalizeLemma(lemmaRaw);
@@ -452,7 +508,6 @@ async function answerReview(userId, lemmaRaw, { know } = {}) {
     const nextStep = Math.min(word.srsStep + 1, SRS_INTERVALS.length - 1);
     const interval = SRS_INTERVALS[nextStep];
     const next = addDays(today, interval);
-    // step 满且 pass 够 → mastered（MVP：step 到顶即掌握）
     if (word.srsStep >= SRS_INTERVALS.length - 1) {
       await pool.query(
         `UPDATE user_words

@@ -23,7 +23,7 @@ Future<void> showWordSheet({
       content.targetLemmas.contains(lemma) || token.isTarget;
   final localDef = content.defFor(lemma);
 
-  tts.speak(speakText);
+  tts.speakWord(speakText);
 
   return showModalBottomSheet<void>(
     context: context,
@@ -38,7 +38,7 @@ Future<void> showWordSheet({
         isTarget: isTargetLocal,
         initialDef: localDef,
         lessonId: lessonId,
-        ttsSpeak: () => tts.speak(speakText),
+        ttsSpeak: () => tts.speakWord(speakText),
         onKnow: (gloss) {
           onKnow(lemma, gloss: gloss);
           Navigator.of(ctx).pop();

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:app_starter/core/network/api_client.dart';
-import 'package:app_starter/core/ui/app_toast.dart';
 import 'package:app_starter/features/lesson/lesson_article_page.dart';
 import 'package:app_starter/features/lesson/lesson_repository.dart';
 import 'package:app_starter/features/vocab/review_page.dart';
@@ -79,25 +78,21 @@ class _VocabPageState extends State<VocabPage> {
 
   Future<void> _openSource(VocabItem item) async {
     final id = item.sourceLessonId;
-    if (id == null) {
-      AppToast.show(context, '暂无出处文章');
-      return;
-    }
+    if (id == null) return;
     try {
-      AppToast.loading(context, '打开原文…');
       final lesson = await _lessonRepo.getById(id);
       if (!mounted) return;
-      AppToast.hide(context);
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (_) => LessonArticlePage(lesson: lesson),
+          builder: (_) => LessonArticlePage(
+            lesson: lesson,
+            focusLemma: item.lemma,
+          ),
         ),
       );
       if (mounted) _load();
-    } catch (e) {
-      if (!mounted) return;
-      AppToast.hide(context);
-      AppToast.show(context, e is ApiException ? e.message : '打开失败');
+    } catch (_) {
+      /* 静默失败 */
     }
   }
 
@@ -201,6 +196,7 @@ class _VocabPageState extends State<VocabPage> {
         return '点词「不认识」可加入待巩固。';
     }
   }
+
 }
 
 class _DueHero extends StatelessWidget {

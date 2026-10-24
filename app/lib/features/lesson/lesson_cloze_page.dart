@@ -372,7 +372,7 @@ class _LessonClozePageState extends State<LessonClozePage> {
                                 ),
                                 IconButton(
                                   tooltip: '朗读',
-                                  onPressed: () => _tts.speak(item.answer),
+                                  onPressed: () => _tts.speakWord(item.answer),
                                   icon: const Icon(
                                     Icons.volume_up_rounded,
                                     color: _bad,

@@ -7,6 +7,7 @@ import 'package:app_starter/features/lesson/lesson_repository.dart';
 import 'package:app_starter/features/lesson/lesson_tts.dart';
 import 'package:app_starter/features/lesson/word_repository.dart';
 import 'package:app_starter/features/lesson/widgets/lesson_generating_view.dart';
+import 'package:app_starter/features/lesson/widgets/lesson_listen_bar.dart';
 import 'package:app_starter/features/lesson/widgets/token_text.dart';
 import 'package:app_starter/features/lesson/widgets/word_sheet.dart';
 import 'package:app_starter/features/shell/main_shell.dart';
@@ -18,6 +19,7 @@ class LessonArticlePage extends StatefulWidget {
     this.lesson,
     this.lessonId,
     this.firstDay = false,
+    this.focusLemma,
   });
 
   final Lesson? lesson;
@@ -27,6 +29,9 @@ class LessonArticlePage extends StatefulWidget {
 
   /// 画像完成后进第一篇：用生成中界面（可能触发后端首次成文）。
   final bool firstDay;
+
+  /// 生词本跳转：在文中用特殊样式标出该词。
+  final String? focusLemma;
 
   @override
   State<LessonArticlePage> createState() => _LessonArticlePageState();
@@ -43,6 +48,10 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
   bool _zhExpanded = true;
   final Set<String> _known = {};
   final Set<String> _tempHl = {};
+  late final Set<String> _focus = {
+    if (widget.focusLemma != null && widget.focusLemma!.trim().isNotEmpty)
+      widget.focusLemma!.trim().toLowerCase(),
+  };
 
   static const _bg = Color(0xFFF5F6F8);
   static const _blue = Color(0xFF1A56DB);
@@ -105,6 +114,35 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
       final next = await _repo.open(lesson.id);
       if (mounted) setState(() => _lesson = next);
     } catch (_) {}
+    _maybeJumpDialogForFocus(_lesson ?? lesson);
+  }
+
+  bool _lemmaInArticle(Lesson lesson, String lemma) {
+    final key = lemma.toLowerCase();
+    return lesson.content.article.enTokens
+        .any((t) => t.lemma.toLowerCase() == key);
+  }
+
+  bool _lemmaInDialog(Lesson lesson, String lemma) {
+    final key = lemma.toLowerCase();
+    for (final turn in lesson.content.dialog.turns) {
+      if (turn.enTokens.any((t) => t.lemma.toLowerCase() == key)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// 生词本跳转：词只在对话里时，自动进入对话页并高亮。
+  void _maybeJumpDialogForFocus(Lesson lesson) {
+    final focus = widget.focusLemma?.trim();
+    if (focus == null || focus.isEmpty) return;
+    if (_lemmaInArticle(lesson, focus)) return;
+    if (!_lemmaInDialog(lesson, focus)) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _goDialog();
+    });
   }
 
   void _onToken(LessonToken token) {
@@ -159,11 +197,6 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
     );
   }
 
-  Future<void> _listenArticle() async {
-    final plain = _lesson?.content.article.enPlain ?? '';
-    await _tts.speak(plain);
-  }
-
   void _goDialog() {
     final lesson = _lesson;
     if (lesson == null) return;
@@ -173,6 +206,7 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
           lesson: lesson,
           knownLemmas: _known,
           tempHighlightLemmas: _tempHl,
+          focusLemma: widget.focusLemma,
           onKnownChanged: (s) => setState(() {
             _known
               ..clear()
@@ -432,6 +466,7 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
                       onTap: _onToken,
                       knownLemmas: _known,
                       tempHighlightLemmas: _tempHl,
+                      focusLemmas: _focus,
                     ),
                   ],
                 ),
@@ -472,25 +507,11 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
           padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
           child: Column(
             children: [
-              SizedBox(
-                width: double.infinity,
-                height: 41,
-                child: FilledButton(
-                  onPressed: _listenArticle,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: _blue,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  child: const Text(
-                    '听一遍短文',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
+              LessonListenBar(
+                tts: _tts,
+                text: article.enPlain,
+                idleLabel: '听一遍短文',
+                accent: _blue,
               ),
               const SizedBox(height: 8),
               SizedBox(

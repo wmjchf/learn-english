@@ -5,7 +5,7 @@ import 'package:app_starter/features/lesson/lesson_tts.dart';
 import 'package:app_starter/features/vocab/vocab_models.dart';
 import 'package:app_starter/features/vocab/vocab_repository.dart';
 
-/// 闪卡复习：从今日 / 生词本进入。
+/// 闪卡复习：从今日 / 生词本进入（到期词）。
 class ReviewPage extends StatefulWidget {
   const ReviewPage({super.key});
 
@@ -55,7 +55,7 @@ class _ReviewPageState extends State<ReviewPage> {
         _loading = false;
       });
       if (items.isNotEmpty) {
-        _tts.speak(items.first.lemma);
+        _tts.speakWord(items.first.lemma);
       }
     } catch (e) {
       if (!mounted) return;
@@ -77,7 +77,7 @@ class _ReviewPageState extends State<ReviewPage> {
   Future<void> _speakCurrent() async {
     final item = _current;
     if (item == null) return;
-    await _tts.speak(item.lemma);
+    await _tts.speakWord(item.lemma);
   }
 
   Future<void> _answer(bool know) async {
@@ -99,7 +99,7 @@ class _ReviewPageState extends State<ReviewPage> {
       });
       final next = _current;
       if (next != null) {
-        _tts.speak(next.lemma);
+        _tts.speakWord(next.lemma);
       } else {
         await _finishSession();
       }
@@ -167,11 +167,18 @@ class _ReviewPageState extends State<ReviewPage> {
                                 onForgot: () => _answer(false),
                                 onKnow: () => _answer(true),
                               )
-                            : _DoneView(
-                                known: _known,
-                                forgot: _forgot,
-                                onClose: () => Navigator.of(context).pop(),
-                              ),
+                            : total == 0 && _known == 0 && _forgot == 0
+                                ? _EmptyDeck(
+                                    message: '今天没有可刷的到期词\n（需已有详细释义）。',
+                                    onClose: () =>
+                                        Navigator.of(context).pop(),
+                                  )
+                                : _DoneView(
+                                    known: _known,
+                                    forgot: _forgot,
+                                    onClose: () =>
+                                        Navigator.of(context).pop(),
+                                  ),
                       ),
                     ],
                   ),
@@ -276,9 +283,6 @@ class _CardSession extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final canAnswer = revealed && !busy;
-    final gloss = item.gloss?.trim();
-    final glossText =
-        (gloss != null && gloss.isNotEmpty) ? gloss : '暂无释义';
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
@@ -316,9 +320,7 @@ class _CardSession extends StatelessWidget {
                         child: revealed
                             ? _BackFace(
                                 key: const ValueKey('back'),
-                                lemma: item.lemma,
-                                gloss: glossText,
-                                sourceTitle: item.sourceTitle,
+                                item: item,
                               )
                             : _FrontFace(
                                 key: const ValueKey('front'),
@@ -433,69 +435,158 @@ class _FrontFace extends StatelessWidget {
 }
 
 class _BackFace extends StatelessWidget {
-  const _BackFace({
-    super.key,
-    required this.lemma,
-    required this.gloss,
-    this.sourceTitle,
-  });
+  const _BackFace({super.key, required this.item});
 
-  final String lemma;
-  final String gloss;
-  final String? sourceTitle;
+  final VocabItem item;
 
   static const _text = Color(0xFF0F172A);
+  static const _body = Color(0xFF334155);
   static const _muted = Color(0xFF64748B);
   static const _meta = Color(0xFF94A3B8);
   static const _blueSoft = Color(0xFFEFF6FF);
 
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Text(
-          lemma,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontSize: 28,
-            fontWeight: FontWeight.w700,
-            color: _text,
-          ),
-        ),
-        const SizedBox(height: 20),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-          decoration: BoxDecoration(
-            color: _blueSoft,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Text(
-            gloss,
-            textAlign: TextAlign.center,
+  Widget _block(String label, String body, {bool strong = false}) {
+    if (body.trim().isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
             style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
-              color: _text,
-              height: 1.4,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: _meta,
             ),
           ),
-        ),
-        if (sourceTitle != null && sourceTitle!.isNotEmpty) ...[
-          const SizedBox(height: 16),
+          const SizedBox(height: 4),
           Text(
-            '出自《$sourceTitle》',
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 13, color: _meta),
+            body,
+            style: TextStyle(
+              fontSize: strong ? 16 : 14,
+              fontWeight: strong ? FontWeight.w600 : FontWeight.w500,
+              color: strong ? _text : _body,
+              height: 1.45,
+            ),
           ),
         ],
-        const SizedBox(height: 12),
-        const Text(
-          '再点可收回',
-          style: TextStyle(fontSize: 12, color: _muted),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final gloss = (item.gloss ?? '').trim();
+    final sense = (item.sense ?? '').trim();
+    final example = [
+      if ((item.exampleEn ?? '').trim().isNotEmpty) item.exampleEn!.trim(),
+      if ((item.exampleZh ?? '').trim().isNotEmpty) item.exampleZh!.trim(),
+    ].join('\n');
+    final contextLine = (item.context ?? '').trim();
+    final root = (item.root ?? '').trim();
+    final sourceTitle = item.sourceTitle;
+
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            item.lemma,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.w700,
+              color: _text,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+            decoration: BoxDecoration(
+              color: _blueSoft,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (gloss.isNotEmpty)
+                  Text(
+                    gloss,
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: _text,
+                      height: 1.4,
+                    ),
+                  ),
+                _block('用法详解', sense, strong: true),
+                _block('例句', example),
+                _block(
+                  '语境',
+                  contextLine.isNotEmpty && contextLine != sense
+                      ? contextLine
+                      : '',
+                ),
+                _block('词根', root.isNotEmpty && root != item.lemma ? root : ''),
+              ],
+            ),
+          ),
+          if (sourceTitle != null && sourceTitle.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              '出自《$sourceTitle》',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 13, color: _meta),
+            ),
+          ],
+          const SizedBox(height: 10),
+          const Text(
+            '再点可收回',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 12, color: _muted),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EmptyDeck extends StatelessWidget {
+  const _EmptyDeck({required this.message, required this.onClose});
+
+  final String message;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 15,
+                color: Color(0xFF64748B),
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: onClose,
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF2563EB),
+              ),
+              child: const Text('返回'),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }

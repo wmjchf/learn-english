@@ -45,4 +45,10 @@ module.exports = {
     dailyQuota: Number(process.env.GENERATE_DAILY_QUOTA) || 1,
     retryMax: Number(process.env.LESSON_RETRY_MAX) || 1,
   },
+  /** 百炼 Qwen-TTS（朗读） */
+  tts: {
+    model: process.env.TTS_MODEL || 'qwen3-tts-flash',
+    voice: process.env.TTS_VOICE || 'Cherry',
+    languageType: process.env.TTS_LANGUAGE_TYPE || 'English',
+  },
 };

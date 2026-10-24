@@ -15,6 +15,7 @@ const wordsRouter = require('./routes/words');
 const meRouter = require('./routes/me');
 const streakRouter = require('./routes/streak');
 const llmRouter = require('./routes/llm');
+const ttsRouter = require('./routes/tts');
 
 const app = express();
 const publicDir = path.join(__dirname, '..', 'public');
@@ -46,6 +47,7 @@ app.use('/api/words', wordsRouter);
 app.use('/api/me', meRouter);
 app.use('/api/streak', streakRouter);
 app.use('/api/llm', llmRouter);
+app.use('/api/tts', ttsRouter);
 
 app.use((err, _req, res, _next) => {
   console.error(err);

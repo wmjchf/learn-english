@@ -5,6 +5,7 @@ import 'package:app_starter/features/lesson/lesson_cloze_page.dart';
 import 'package:app_starter/features/lesson/lesson_models.dart';
 import 'package:app_starter/features/lesson/lesson_tts.dart';
 import 'package:app_starter/features/lesson/word_repository.dart';
+import 'package:app_starter/features/lesson/widgets/lesson_listen_bar.dart';
 import 'package:app_starter/features/lesson/widgets/token_text.dart';
 import 'package:app_starter/features/lesson/widgets/word_sheet.dart';
 
@@ -17,6 +18,7 @@ class LessonDialogPage extends StatefulWidget {
     required this.tempHighlightLemmas,
     required this.onKnownChanged,
     required this.onTempChanged,
+    this.focusLemma,
   });
 
   final Lesson lesson;
@@ -24,6 +26,8 @@ class LessonDialogPage extends StatefulWidget {
   final Set<String> tempHighlightLemmas;
   final ValueChanged<Set<String>> onKnownChanged;
   final ValueChanged<Set<String>> onTempChanged;
+  /// 生词本跳转：在对话里用特殊样式标出该词。
+  final String? focusLemma;
 
   @override
   State<LessonDialogPage> createState() => _LessonDialogPageState();
@@ -34,6 +38,10 @@ class _LessonDialogPageState extends State<LessonDialogPage> {
   final _words = WordRepository();
   late Set<String> _known;
   late Set<String> _tempHl;
+  late final Set<String> _focus = {
+    if (widget.focusLemma != null && widget.focusLemma!.trim().isNotEmpty)
+      widget.focusLemma!.trim().toLowerCase(),
+  };
   bool _zhExpanded = true;
 
   static const _bg = Color(0xFFF5F6F8);
@@ -113,12 +121,11 @@ class _LessonDialogPageState extends State<LessonDialogPage> {
     );
   }
 
-  Future<void> _listen() async {
+  String get _listenPlain {
     final dialog = widget.lesson.content.dialog;
-    final plain = dialog.enPlain.isNotEmpty
+    return dialog.enPlain.isNotEmpty
         ? dialog.enPlain
         : dialog.turns.map((t) => '${t.who}: ${t.en}').join(' ');
-    await _tts.speak(plain);
   }
 
   void _goCloze() {
@@ -301,6 +308,7 @@ class _LessonDialogPageState extends State<LessonDialogPage> {
                             onTap: _onToken,
                             knownLemmas: _known,
                             tempHighlightLemmas: _tempHl,
+                            focusLemmas: _focus,
                             leading: Text(
                               '${dialog.turns[i].who}:',
                               style: const TextStyle(
@@ -322,25 +330,11 @@ class _LessonDialogPageState extends State<LessonDialogPage> {
               padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
               child: Column(
                 children: [
-                  SizedBox(
-                    width: double.infinity,
-                    height: 41,
-                    child: FilledButton(
-                      onPressed: _listen,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: _blue,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      child: const Text(
-                        '听一遍对话',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
+                  LessonListenBar(
+                    tts: _tts,
+                    text: _listenPlain,
+                    idleLabel: '听一遍对话',
+                    accent: _blue,
                   ),
                   const SizedBox(height: 8),
                   SizedBox(
