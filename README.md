@@ -23,10 +23,12 @@ pnpm install
 cp .env.example .env
 pnpm db:init
 pnpm db:migrate
+pnpm db:seed-words # 把词条灌进 bank_words（抽词/释义查库）
 pnpm dev           # http://127.0.0.1:3001
 ```
 
-`.env` 里填 MySQL，以及 `DASHSCOPE_API_KEY`（日课生成走百炼 OpenAI 兼容接口）。未配 Key 时生成会失败。
+`.env` 里填 MySQL，以及 `DASHSCOPE_API_KEY`（日课正文生成走百炼）。  
+真词库在表 **`bank_words`**（lemma / gloss / bank_code）；`bankWordPools.js` 只是灌库种子。
 
 健康检查：`GET /api/health`  
 开发登录：任意 `1` 开头 11 位手机号，验证码默认 `123456`（`SMS_DEV_MODE=true`）。

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:app_starter/core/network/api_client.dart';
 import 'package:app_starter/core/ui/app_toast.dart';
+import 'package:app_starter/core/ui/blocking_overlay.dart';
 import 'package:app_starter/features/library/library_models.dart';
 import 'package:app_starter/features/library/library_repository.dart';
 import 'package:app_starter/features/lesson/lesson_article_page.dart';
@@ -100,9 +101,12 @@ class _LibraryPageState extends State<LibraryPage> {
 
     setState(() => _generating = true);
     try {
-      final result = await _repo.generate();
-      if (!mounted) return;
-      setState(() => _generating = false);
+      final result = await BlockingOverlay.run(
+        context,
+        child: const _GeneratingCard(),
+        task: () => _repo.generate(),
+      );
+      if (!mounted || result == null) return;
       AppToast.show(context, '新文章已生成');
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
@@ -115,11 +119,12 @@ class _LibraryPageState extends State<LibraryPage> {
       }
     } catch (e) {
       if (!mounted) return;
-      setState(() => _generating = false);
       AppToast.show(
         context,
         e is ApiException ? e.message : '生成失败',
       );
+    } finally {
+      if (mounted) setState(() => _generating = false);
     }
   }
 
@@ -129,111 +134,101 @@ class _LibraryPageState extends State<LibraryPage> {
       backgroundColor: _bg,
       body: SafeArea(
         bottom: false,
-        child: Stack(
-          children: [
-            if (_loading && _data == null)
-              const Center(child: CircularProgressIndicator(strokeWidth: 2))
-            else if (_error != null && _data == null)
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(_error!, textAlign: TextAlign.center),
-                      const SizedBox(height: 12),
-                      FilledButton(onPressed: _load, child: const Text('重试')),
-                    ],
-                  ),
-                ),
-              )
-            else
-              RefreshIndicator(
-                onRefresh: _load,
-                child: ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-                  children: [
-                    const Text(
-                      '文章库',
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w700,
-                        color: _text,
-                        height: 34 / 28,
+        child: _loading && _data == null
+            ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+            : _error != null && _data == null
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(_error!, textAlign: TextAlign.center),
+                          const SizedBox(height: 12),
+                          FilledButton(
+                            onPressed: _load,
+                            child: const Text('重试'),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      '读过的都在这。想换一篇，再生成一次。',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: _muted,
-                        height: 20 / 14,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    _GenerateHero(
-                      hint: _data?.quota.hint ??
-                          '今天还可免费生成 1 次，之后需付费。',
-                      enabled: _data?.quota.canGenerateFree ?? true,
-                      onGenerate: _generate,
-                    ),
-                    const SizedBox(height: 20),
-                    Row(
+                  )
+                : RefreshIndicator(
+                    onRefresh: _load,
+                    child: ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
                       children: [
-                        _FilterChip(
-                          label: '全部',
-                          selected: _filter == 'all',
-                          onTap: () => _setFilter('all'),
-                        ),
-                        const SizedBox(width: 8),
-                        _FilterChip(
-                          label: '未读',
-                          selected: _filter == 'unread',
-                          onTap: () => _setFilter('unread'),
-                        ),
-                        const SizedBox(width: 8),
-                        _FilterChip(
-                          label: '已读',
-                          selected: _filter == 'done',
-                          onTap: () => _setFilter('done'),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    if ((_data?.items ?? []).isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 32),
-                        child: Text(
-                          '还没有文章。去今日读一篇，或点上方生成。',
-                          style: TextStyle(fontSize: 13, color: _meta),
-                        ),
-                      )
-                    else
-                      ..._data!.items.map(
-                        (item) => Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: _LessonRow(
-                            item: item,
-                            onTap: () => _openLesson(item.id),
+                        const Text(
+                          '文章库',
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w700,
+                            color: _text,
+                            height: 34 / 28,
                           ),
                         ),
-                      ),
-                  ],
-                ),
-              ),
-            if (_generating)
-              Positioned.fill(
-                child: ColoredBox(
-                  color: Colors.black.withValues(alpha: 0.28),
-                  child: const Center(
-                    child: _GeneratingCard(),
+                        const SizedBox(height: 8),
+                        const Text(
+                          '读过的都在这。想换一篇，再生成一次。',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: _muted,
+                            height: 20 / 14,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        _GenerateHero(
+                          hint: _data?.quota.hint ??
+                              '今天还可免费生成 1 次，之后需付费。',
+                          enabled: !_generating &&
+                              (_data?.quota.canGenerateFree ?? true),
+                          onGenerate: _generate,
+                        ),
+                        const SizedBox(height: 20),
+                        Row(
+                          children: [
+                            _FilterChip(
+                              label: '全部',
+                              selected: _filter == 'all',
+                              onTap: () => _setFilter('all'),
+                            ),
+                            const SizedBox(width: 8),
+                            _FilterChip(
+                              label: '未读',
+                              selected: _filter == 'unread',
+                              onTap: () => _setFilter('unread'),
+                            ),
+                            const SizedBox(width: 8),
+                            _FilterChip(
+                              label: '已读',
+                              selected: _filter == 'done',
+                              onTap: () => _setFilter('done'),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        if ((_data?.items ?? []).isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 32),
+                            child: Text(
+                              '还没有文章。去今日读一篇，或点上方生成。',
+                              style: TextStyle(fontSize: 13, color: _meta),
+                            ),
+                          )
+                        else
+                          ..._data!.items.map(
+                            (item) => Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _LessonRow(
+                                item: item,
+                                onTap: () => _openLesson(item.id),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
-                ),
-              ),
-          ],
-        ),
       ),
     );
   }

@@ -207,6 +207,15 @@ async function markVocab(userId, lemmaRaw, { lessonId, gloss } = {}) {
       (await resolveGlossFromLesson(lessonId, lemma)) ||
       '';
   }
+  if (!glossText || glossText.toLowerCase() === lemma) {
+    try {
+      const wordDictService = require('./wordDictService');
+      const d = await wordDictService.getOne(lemma);
+      if (d.gloss) glossText = d.gloss;
+    } catch {
+      /* ignore */
+    }
+  }
 
   await pool.query(
     `INSERT INTO user_words
@@ -319,6 +328,22 @@ function formatItem(row, today) {
   };
 }
 
+async function fillMissingGlossFromDict(items) {
+  const need = items.filter((w) => !w.gloss).map((w) => w.lemma);
+  if (!need.length) return items;
+  const wordDictService = require('./wordDictService');
+  const map = await wordDictService.getMany(need);
+  for (const w of items) {
+    if (w.gloss) continue;
+    const d = map[w.lemma];
+    if (d?.gloss) {
+      w.gloss = d.gloss;
+      w.root = d.root || w.lemma;
+    }
+  }
+  return items;
+}
+
 /**
  * 生词本列表 + 今日到期摘要。
  * @param {string} bucket learning|consolidating|mastered
@@ -356,6 +381,10 @@ async function listVocab(userId, { bucket = 'consolidating' } = {}) {
   const inLessonCount = Math.min(IN_ARTICLE_REVIEW_CAP, dueCount);
   const flashCount = Math.max(0, dueCount - inLessonCount);
 
+  const items = await fillMissingGlossFromDict(
+    rows.map((r) => formatItem(r, today)),
+  );
+
   return {
     bucket,
     counts,
@@ -371,7 +400,7 @@ async function listVocab(userId, { bucket = 'consolidating' } = {}) {
           : '读文章时点「不认识」可加入生词本。',
       ctaLabel: dueCount > 0 ? '开始复习' : null,
     },
-    items: rows.map((r) => formatItem(r, today)),
+    items,
   };
 }
 
@@ -391,9 +420,12 @@ async function listDueReviews(userId) {
      LIMIT 50`,
     { userId, today },
   );
+  const items = await fillMissingGlossFromDict(
+    rows.map((r) => formatItem(r, today)),
+  );
   return {
     dueCount: rows.length,
-    items: rows.map((r) => formatItem(r, today)),
+    items,
   };
 }
 

@@ -1,4 +1,5 @@
 const { pool } = require('../db');
+const wordDictService = require('./wordDictService');
 const wordDefService = require('./wordDefService');
 const { cleanLemma } = require('./lessonTokenize');
 
@@ -44,7 +45,7 @@ async function persistDef(lessonId, lemma, def) {
 }
 
 /**
- * 点词查询：日课内嵌 defs 优先 → 弱释义则 LLM 补并回写日课。
+ * 点词：日课 defs → bank_words → 占位（不再调 AI）。
  */
 async function lookup(userId, { surface, lemma, lessonId } = {}) {
   const surfaceText = String(surface || '').trim();
@@ -67,7 +68,6 @@ async function lookup(userId, { surface, lemma, lessonId } = {}) {
   const isTarget = targets.includes(resolvedLemma);
 
   let def = content.defs?.[resolvedLemma] || null;
-  // 兼容 defs 键大小写不一致
   if (!def && content.defs) {
     const key = Object.keys(content.defs).find(
       (k) => cleanLemma(k) === resolvedLemma,
@@ -80,28 +80,18 @@ async function lookup(userId, { surface, lemma, lessonId } = {}) {
     : null;
 
   if (!source) {
-    // 从短文中抽一句含该词的片段作语境提示
-    const corpus = `${content.article?.enPlain || ''}\n${
-      content.dialog?.enPlain || ''
-    }`;
-    const re = new RegExp(
-      `[^.!?\\n]*\\b${resolvedLemma.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\w*\\b[^.!?\\n]*[.!?]?`,
-      'i',
-    );
-    const m = corpus.match(re);
-    const sentenceHint = m ? m[0].trim() : '';
-
-    try {
-      def = await wordDefService.enrichDefOne({
-        lemma: resolvedLemma,
-        surface: surfaceText || resolvedLemma,
-        sentenceHint,
-      });
-      source = wordDefService.isWeakDef(def, resolvedLemma) ? 'stub' : 'llm';
-      if (lesson?.id && source === 'llm') {
+    const fromDict = await wordDictService.getOne(resolvedLemma);
+    if (fromDict.gloss) {
+      def = {
+        gloss: fromDict.gloss,
+        context: fromDict.context || '',
+        root: fromDict.root || resolvedLemma,
+      };
+      source = 'pool';
+      if (lesson?.id) {
         await persistDef(lesson.id, resolvedLemma, def);
       }
-    } catch {
+    } else {
       def = wordDefService.normalizeDef(def, resolvedLemma);
       source = 'stub';
     }

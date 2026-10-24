@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:app_starter/core/network/api_client.dart';
 import 'package:app_starter/core/ui/app_toast.dart';
+import 'package:app_starter/core/ui/blocking_overlay.dart';
 import 'package:app_starter/features/lesson/lesson_article_page.dart';
 import 'package:app_starter/features/today/today_models.dart';
 import 'package:app_starter/features/today/today_repository.dart';
@@ -63,20 +64,24 @@ class _TodayPageState extends State<TodayPage> {
     if (_generating) return;
     setState(() => _generating = true);
     try {
-      final data = await _repo.regenerate();
+      final data = await BlockingOverlay.run(
+        context,
+        child: const _GeneratingCard(),
+        task: () => _repo.regenerate(),
+      );
       if (!mounted) return;
-      setState(() {
-        _data = data;
-        _generating = false;
-      });
-      AppToast.show(context, '已按你的画像生成新篇');
+      if (data != null) {
+        setState(() => _data = data);
+        AppToast.show(context, '已按你的画像生成新篇');
+      }
     } catch (e) {
       if (!mounted) return;
-      setState(() => _generating = false);
       AppToast.show(
         context,
         e is ApiException ? e.message : '生成失败',
       );
+    } finally {
+      if (mounted) setState(() => _generating = false);
     }
   }
 
@@ -106,87 +111,85 @@ class _TodayPageState extends State<TodayPage> {
       backgroundColor: _bg,
       body: SafeArea(
         bottom: false,
-        child: Stack(
-          children: [
-            if (_loading)
-              const Center(child: CircularProgressIndicator(strokeWidth: 2))
-            else if (_error != null)
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(_error!, textAlign: TextAlign.center),
-                      const SizedBox(height: 12),
-                      FilledButton(
-                        onPressed: () => _load(),
-                        child: const Text('重试'),
-                      ),
-                    ],
-                  ),
-                ),
-              )
-            else
-              RefreshIndicator(
-                onRefresh: _load,
-                child: ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-                  children: [
-                    Row(
-                      children: [
-                        const Expanded(
-                          child: Text(
-                            '今日',
-                            style: TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.w700,
-                              color: _text,
-                              height: 34 / 28,
-                            ),
+        child: _loading
+            ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+            : _error != null
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(_error!, textAlign: TextAlign.center),
+                          const SizedBox(height: 12),
+                          FilledButton(
+                            onPressed: () => _load(),
+                            child: const Text('重试'),
                           ),
-                        ),
-                        if (_data!.lesson.status != 'done')
-                          TextButton(
-                            onPressed: _generating ? null : _regenerateManual,
-                            child: const Text(
-                              '换一篇',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: _blue,
+                        ],
+                      ),
+                    ),
+                  )
+                : RefreshIndicator(
+                    onRefresh: _load,
+                    child: ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+                      children: [
+                        Row(
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                '今日',
+                                style: TextStyle(
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.w700,
+                                  color: _text,
+                                  height: 34 / 28,
+                                ),
                               ),
                             ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Text(
-                          '连胜 ${_data!.streakDays} 天',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: _meta,
-                          ),
+                            if (_data!.lesson.status != 'done')
+                              TextButton(
+                                onPressed:
+                                    _generating ? null : _regenerateManual,
+                                child: const Text(
+                                  '换一篇',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: _blue,
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
-                        const Spacer(),
-                        Text(
-                          '今日任务 ${_data!.tasksDone} / ${_data!.tasksTotal}',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: _metaLight,
-                          ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Text(
+                              '连胜 ${_data!.streakDays} 天',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: _meta,
+                              ),
+                            ),
+                            const Spacer(),
+                            Text(
+                              '今日任务 ${_data!.tasksDone} / ${_data!.tasksTotal}',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: _metaLight,
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    _HeroCard(
-                      lesson: _data!.lesson,
-                      onStart: _startReading,
-                    ),
+                        const SizedBox(height: 20),
+                        _HeroCard(
+                          lesson: _data!.lesson,
+                          onStart: _startReading,
+                        ),
                         const SizedBox(height: 20),
                         _ReviewRow(
                           dueCount: _data!.review.dueCount,
@@ -198,17 +201,6 @@ class _TodayPageState extends State<TodayPage> {
                       ],
                     ),
                   ),
-            if (_generating)
-              Positioned.fill(
-                child: ColoredBox(
-                  color: Colors.black.withValues(alpha: 0.28),
-                  child: const Center(
-                    child: _GeneratingCard(),
-                  ),
-                ),
-              ),
-          ],
-        ),
       ),
     );
   }

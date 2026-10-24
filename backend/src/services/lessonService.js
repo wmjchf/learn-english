@@ -122,15 +122,35 @@ async function getById(lessonId, userId) {
   return parseContent(rows[0]);
 }
 
-/** 下一篇 Day 序号：历史最大 day_index + 1 */
-async function nextDayIndex(userId) {
+/**
+ * Day 序号 = 学习日序号（按 local_date），不是「第几篇生成文章」。
+ * - 该日已有日课 → 复用当天的 day_index（换一篇 / 手动再生成仍是同一天）
+ * - 新的一天 → 历史最大 day_index + 1
+ */
+async function resolveDayIndex(userId, localDate) {
   await repairCollapsedDayIndexes(userId);
+  const [sameDay] = await pool.query(
+    `SELECT day_index FROM lessons
+     WHERE user_id = :userId AND local_date = :localDate
+     ORDER BY id DESC LIMIT 1`,
+    { userId, localDate },
+  );
+  if (sameDay.length) {
+    return Math.max(1, Number(sameDay[0].day_index) || 1);
+  }
   const [rows] = await pool.query(
     `SELECT COALESCE(MAX(day_index), 0) AS m
      FROM lessons WHERE user_id = :userId`,
     { userId },
   );
   return Number(rows[0]?.m || 0) + 1;
+}
+
+/** @deprecated 用 resolveDayIndex；保留别名避免外部误用 */
+async function nextDayIndex(userId) {
+  const profile = await profileService.ensureProfile(userId);
+  const localDate = todayLocalDate(profile.timezone);
+  return resolveDayIndex(userId, localDate);
 }
 
 /**
@@ -180,7 +200,7 @@ async function getTodayLesson(userId) {
   );
   if (rows.length) return parseContent(rows[0]);
 
-  const dayIndex = await nextDayIndex(userId);
+  const dayIndex = await resolveDayIndex(userId, localDate);
   return createTodayLesson(userId, dayIndex);
 }
 
@@ -446,7 +466,8 @@ async function manualGenerate(userId) {
   const lemmaOffset = Math.floor(Math.random() * 40);
 
   try {
-    const dayIndex = await nextDayIndex(userId);
+    // 与「今日」同一天共用 Day N，避免手动生成变成 Day N+1
+    const dayIndex = await resolveDayIndex(userId, localDate);
     const generated = await lessonGenerateService.generateLessonForUser(
       userId,
       { dayIndex, lemmaOffset },
@@ -476,6 +497,7 @@ module.exports = {
   getTodayLesson,
   getById,
   nextDayIndex,
+  resolveDayIndex,
   createFromAi,
   createTodayLesson,
   regenerateToday,

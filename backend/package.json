@@ -11,7 +11,8 @@
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
     "db:init": "node scripts/init-db.js",
-    "db:migrate": "node scripts/migrate.js"
+    "db:migrate": "node scripts/migrate.js",
+    "db:seed-words": "node scripts/seed-bank-words.js"
   },
   "license": "ISC",
   "dependencies": {

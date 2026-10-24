@@ -1,0 +1,97 @@
+const { pool } = require('../db');
+const { cleanLemma } = require('./lessonTokenize');
+
+/**
+ * 从 bank_words 按 ord 环形抽取目标词。
+ */
+async function pickTargetLemmas(bankCode, cursorOrd = 0, count = 12) {
+  const code = bankCode || 'business';
+  const [rows] = await pool.query(
+    `SELECT lemma FROM bank_words
+     WHERE bank_code = :code
+     ORDER BY \`ord\` ASC, id ASC`,
+    { code },
+  );
+  if (!rows.length) {
+    // 商务库为空时再试 business；仍空则报错提示灌库
+    if (code !== 'business') {
+      return pickTargetLemmas('business', cursorOrd, count);
+    }
+    const err = new Error(
+      '词库 bank_words 为空，请先执行: node scripts/seed-bank-words.js',
+    );
+    err.status = 500;
+    err.code = 'BANK_WORDS_EMPTY';
+    throw err;
+  }
+  const lemmas = rows.map((r) => r.lemma).filter(Boolean);
+  const n = Math.min(Math.max(1, count), lemmas.length);
+  const start = ((cursorOrd % lemmas.length) + lemmas.length) % lemmas.length;
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    out.push(lemmas[(start + i) % lemmas.length]);
+  }
+  return out;
+}
+
+/**
+ * 批量查释义。
+ * @returns {Record<string, {gloss:string|null, context:null, root:string}>}
+ */
+async function getDefs(lemmas) {
+  const list = [
+    ...new Set((lemmas || []).map(cleanLemma).filter(Boolean)),
+  ];
+  const out = {};
+  if (!list.length) return out;
+
+  const placeholders = list.map((_, i) => `:l${i}`).join(',');
+  const params = {};
+  list.forEach((l, i) => {
+    params[`l${i}`] = l;
+  });
+  const [rows] = await pool.query(
+    `SELECT lemma, gloss, root FROM bank_words
+     WHERE lemma IN (${placeholders})
+     ORDER BY id ASC`,
+    params,
+  );
+  for (const row of rows) {
+    const lemma = cleanLemma(row.lemma);
+    if (out[lemma]?.gloss) continue;
+    const gloss = String(row.gloss || '').trim();
+    out[lemma] = {
+      gloss: gloss || null,
+      context: null,
+      root: String(row.root || lemma).trim() || lemma,
+    };
+  }
+  for (const lemma of list) {
+    if (!out[lemma]) {
+      out[lemma] = { gloss: null, context: null, root: lemma };
+    }
+  }
+  return out;
+}
+
+async function getDef(lemmaRaw) {
+  const lemma = cleanLemma(lemmaRaw);
+  if (!lemma) return { gloss: null, context: null, root: '' };
+  const map = await getDefs([lemma]);
+  return map[lemma];
+}
+
+async function countByBank(bankCode) {
+  const [rows] = await pool.query(
+    `SELECT COUNT(*) AS c FROM bank_words WHERE bank_code = :code`,
+    { code: bankCode },
+  );
+  return Number(rows[0]?.c || 0);
+}
+
+module.exports = {
+  pickTargetLemmas,
+  getDefs,
+  getDef,
+  countByBank,
+};

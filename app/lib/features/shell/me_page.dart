@@ -87,7 +87,9 @@ class _MePageState extends State<MePage> {
     final phone = _me?.user.phone ?? '';
     await showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       backgroundColor: Colors.white,
+      barrierColor: const Color(0x66000000),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),

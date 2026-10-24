@@ -154,6 +154,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
     final next = _levels[nextIdx];
     final ok = await showDialog<bool>(
       context: context,
+      useRootNavigator: true,
+      barrierColor: const Color(0x66000000),
       builder: (ctx) => AlertDialog(
         title: Text(delta > 0 ? '升一档到 $next？' : '降一档到 $next？'),
         content: const Text('只影响之后生成的文章难度，历史不回溯。能力水平不变。'),
@@ -233,8 +235,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
     if (list == null || profile == null) return;
     final result = await showModalBottomSheet<_JobPick>(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: Colors.white,
+      barrierColor: const Color(0x66000000),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -256,8 +260,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
     if (profile == null) return;
     final result = await showModalBottomSheet<_DailyPick>(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: Colors.white,
+      barrierColor: const Color(0x66000000),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -289,8 +295,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
     if (_bankList.isEmpty) return;
     final picked = await showModalBottomSheet<WordBank>(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: Colors.white,
+      barrierColor: const Color(0x66000000),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -304,6 +312,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
     final ok = await showDialog<bool>(
       context: context,
+      useRootNavigator: true,
+      barrierColor: const Color(0x66000000),
       builder: (ctx) => AlertDialog(
         title: Text('切换到「${picked.title}」？'),
         content: const Text('切换后会重算预估天数；已学进度按词保留，不按旧计划天数回溯。'),
@@ -367,8 +377,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
   }) {
     return showModalBottomSheet<Set<String>>(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: Colors.white,
+      barrierColor: const Color(0x66000000),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),

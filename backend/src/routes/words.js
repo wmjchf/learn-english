@@ -7,7 +7,7 @@ const router = express.Router();
 
 router.use(requireAuth);
 
-/** 点词释义：日课 defs 优先，弱则 LLM 补 */
+/** 点词释义：日课 defs → bank_words */
 router.post('/lookup', async (req, res, next) => {
   try {
     const surface = req.body?.surface;

@@ -27,8 +27,10 @@ Future<void> showWordSheet({
 
   return showModalBottomSheet<void>(
     context: context,
+    useRootNavigator: true,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
+    barrierColor: const Color(0x66000000),
     builder: (ctx) {
       return _WordSheetBody(
         surface: surface.isEmpty ? lemma : surface,

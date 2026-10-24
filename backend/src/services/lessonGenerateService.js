@@ -1,12 +1,12 @@
 const config = require('../config');
 const { chatCompletion, parseJsonContent } = require('./llmClient');
 const { tokenizeEnglish, coverageScore, cleanLemma } = require('./lessonTokenize');
-const { pickTargetLemmas } = require('../data/bankWordPools');
 const profileService = require('./profileService');
 const planService = require('./planService');
 const bankService = require('./bankService');
+const bankWordService = require('./bankWordService');
 const catalogService = require('./catalogService');
-const wordDefService = require('./wordDefService');
+const wordDictService = require('./wordDictService');
 const wordLifecycleService = require('./wordLifecycleService');
 
 function asArray(v) {
@@ -120,20 +120,8 @@ function normalizeLesson(raw, { targetLemmas, reviewLemmas = [], level, dayIndex
       after: asString(c.after),
     }));
 
-  // 释义可缺：先用模型 defs，否则占位（点词仍可用；后续可二次补词典）
+  // 释义由 bank_words 查库灌入，不依赖模型
   const defs = {};
-  const defsRaw = raw.defs && typeof raw.defs === 'object' ? raw.defs : {};
-  for (const lemma of targetLemmas) {
-    const key = Object.keys(defsRaw).find(
-      (k) => cleanLemma(k) === cleanLemma(lemma),
-    );
-    const d = key ? defsRaw[key] : null;
-    defs[lemma] = {
-      gloss: asString(d?.gloss, lemma),
-      context: asString(d?.context, `本课中的 ${lemma}`),
-      root: asString(d?.root, lemma),
-    };
-  }
 
   return {
     dayIndex,
@@ -236,7 +224,12 @@ async function generateLessonForUser(
     Math.min(15, Number(targetCount) || 12) - reviewLemmas.length,
   );
   const cursorOrd = (plan?.cursorOrd || 0) + lemmaOffset;
-  const targetLemmas = pickTargetLemmas(bankCode, cursorOrd, newCount).filter(
+  const picked = await bankWordService.pickTargetLemmas(
+    bankCode,
+    cursorOrd,
+    newCount,
+  );
+  const targetLemmas = picked.filter(
     (l) => !reviewLemmas.includes(cleanLemma(l)),
   );
 
@@ -259,23 +252,7 @@ async function generateLessonForUser(
     try {
       const { lesson, check, usage, model } = await generateOnce(ctx);
       if (check.ok) {
-        // 生成后强制补齐目标词释义（短调用；失败保留占位）
-        try {
-          const weak = (lesson.targetLemmas || []).filter((l) =>
-            wordDefService.isWeakDef(lesson.defs?.[l], l),
-          );
-          if (weak.length) {
-            const patch = await wordDefService.enrichDefsBatch({
-              lemmas: weak,
-              articlePlain: lesson.article?.enPlain,
-              dialogPlain: lesson.dialog?.enPlain,
-              theme: lesson.theme,
-            });
-            lesson.defs = wordDefService.mergeDefs(lesson.defs, patch);
-          }
-        } catch (err) {
-          console.warn('[lesson] enrich defs failed:', err.message);
-        }
+        await wordDictService.attachDefsToLesson(lesson);
         return {
           lesson,
           bankId: bank?.id || null,
