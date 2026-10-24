@@ -1,7 +1,6 @@
 const { pool } = require('../db');
 const config = require('../config');
 const profileService = require('./profileService');
-const seedDay1 = require('../data/seedLessonDay1');
 const lessonGenerateService = require('./lessonGenerateService');
 const generateQuotaService = require('./generateQuotaService');
 
@@ -81,20 +80,13 @@ async function insertLesson(userId, {
   return getById(result.insertId, userId);
 }
 
-async function createFromSeed(userId, bankId, dayIndex = 1) {
-  const profile = await profileService.ensureProfile(userId);
-  const localDate = todayLocalDate(profile.timezone);
-  return insertLesson(userId, {
-    bankId,
-    dayIndex,
-    localDate,
-    pack: seedDay1,
-    source: 'seed',
-    level: seedDay1.generationLevel || profile.generationLevel || 'B1',
-  });
-}
-
 async function createFromAi(userId, { dayIndex = 1 } = {}) {
+  if (!config.llm.apiKey) {
+    const err = new Error('未配置 DASHSCOPE_API_KEY，无法生成日课');
+    err.status = 500;
+    err.code = 'LLM_NOT_CONFIGURED';
+    throw err;
+  }
   const profile = await profileService.ensureProfile(userId);
   const localDate = todayLocalDate(profile.timezone);
   const generated = await lessonGenerateService.generateLessonForUser(userId, {
@@ -110,51 +102,9 @@ async function createFromAi(userId, { dayIndex = 1 } = {}) {
   });
 }
 
-async function createFromPool(userId, dayIndex = 1) {
-  const lessonPoolService = require('./lessonPoolService');
-  const profile = await profileService.ensureProfile(userId);
-  const localDate = todayLocalDate(profile.timezone);
-  const matched = await lessonPoolService.matchForUser(userId);
-  if (!matched) return null;
-  return insertLesson(userId, {
-    bankId: matched.bankId || profile.primaryBankId,
-    dayIndex,
-    localDate,
-    pack: matched.pack,
-    source: 'pool',
-    level: matched.level,
-  });
-}
-
-/**
- * 优先公共池秒出 → AI → 种子。
- */
+/** 只走 AI 按画像生成；无 key / 失败直接抛错。 */
 async function createTodayLesson(userId, dayIndex = 1) {
-  const profile = await profileService.ensureProfile(userId);
-  // Day1 / 无 LLM：优先池
-  if (dayIndex === 1 || !config.llm.apiKey) {
-    try {
-      const fromPool = await createFromPool(userId, dayIndex);
-      if (fromPool) return fromPool;
-    } catch (err) {
-      console.warn('[lesson] pool match failed:', err.message);
-    }
-  }
-  if (!config.llm.apiKey) {
-    return createFromSeed(userId, profile.primaryBankId, dayIndex);
-  }
-  try {
-    return await createFromAi(userId, { dayIndex });
-  } catch (err) {
-    console.warn('[lesson] AI generate failed, fallback pool/seed:', err.message);
-    try {
-      const fromPool = await createFromPool(userId, dayIndex);
-      if (fromPool) return fromPool;
-    } catch (_) {
-      /* ignore */
-    }
-    return createFromSeed(userId, profile.primaryBankId, dayIndex);
-  }
+  return createFromAi(userId, { dayIndex });
 }
 
 async function getById(lessonId, userId) {
@@ -526,7 +476,6 @@ module.exports = {
   getTodayLesson,
   getById,
   nextDayIndex,
-  createFromSeed,
   createFromAi,
   createTodayLesson,
   regenerateToday,

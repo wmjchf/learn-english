@@ -104,7 +104,8 @@ class _TabItem extends StatelessWidget {
         ? _MainShellState._active
         : _MainShellState._inactive;
     return Expanded(
-      child: InkWell(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 2),

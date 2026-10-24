@@ -54,8 +54,8 @@ async function computeStreak(userId) {
     current: streak.currentStreak,
     longest: streak.longestStreak,
     footnote:
-      streak.longestStreak > 0
-        ? `历史最长 ${streak.longestStreak} 天 · 本月冻结剩 ${streak.freezeRemaining}`
+      streak.currentStreak > 0
+        ? '读完日课或复习可保连胜'
         : '读完日课或复习到期词可打卡',
     freezeRemaining: streak.freezeRemaining,
   };

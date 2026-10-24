@@ -20,16 +20,6 @@ async function start() {
       `[auth] smsDevMode=${config.auth.smsDevMode} aliyunConfigured=${aliyunSms.isConfigured()}`,
     );
 
-    // 公共池种子
-    try {
-      const lessonPoolService = require('./services/lessonPoolService');
-      lessonPoolService.ensureSeedPool().then(() => {
-        console.log('[lesson] pool seed ready');
-      });
-    } catch (err) {
-      console.warn('[lesson] pool seed failed:', err.message);
-    }
-
     // 每小时扫一次：用户本地 0–1 点结算昨日未打卡（冻结 / 断签）
     const streakService = require('./services/streakService');
     const run = async () => {

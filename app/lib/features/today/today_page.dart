@@ -36,35 +36,13 @@ class _TodayPageState extends State<TodayPage> {
     _load();
   }
 
-  Future<void> _load({bool upgradeSeed = true}) async {
+  Future<void> _load() async {
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      var data = await _repo.fetch();
-      // 种子稿自动升级为 AI 定制（未完成时）
-      if (upgradeSeed &&
-          data.lesson.isSeed &&
-          data.lesson.status != 'done') {
-        if (mounted) {
-          setState(() {
-            _data = data;
-            _loading = false;
-            _generating = true;
-          });
-        }
-        try {
-          data = await _repo.regenerate();
-        } catch (e) {
-          if (mounted) {
-            AppToast.show(
-              context,
-              e is ApiException ? e.message : 'AI 生成失败，先读示例稿',
-            );
-          }
-        }
-      }
+      final data = await _repo.fetch();
       if (!mounted) return;
       setState(() {
         _data = data;
@@ -151,7 +129,7 @@ class _TodayPageState extends State<TodayPage> {
               )
             else
               RefreshIndicator(
-                onRefresh: () => _load(upgradeSeed: false),
+                onRefresh: _load,
                 child: ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),

@@ -62,7 +62,7 @@ theme(中文主题4-8字), listLabel, title,
 scene:{title, roleBackground(中文2句), tasks[3]},
 article:{title, zhLead(中文60字内), enPlain(英文60-90词)},
 dialog:{title, zhLead, turns:[{who,en}] 3-4轮},
-cloze:[{before,sentence含________,hintZh,answer,after}] 恰好3题且 answer∈目标词
+cloze:[{before,sentence含________,hintZh,answer,after}] 恰好8题且 answer∈目标词、每题答案互不重复
 
 要求：难度贴合 ${level}；职场自然；禁止堆词；不要 markdown/解释。`;
 }
@@ -111,7 +111,7 @@ function normalizeLesson(raw, { targetLemmas, reviewLemmas = [], level, dayIndex
   };
 
   const cloze = asArray(raw.cloze)
-    .slice(0, 3)
+    .slice(0, 8)
     .map((c) => ({
       before: asString(c.before),
       sentence: asString(c.sentence),
@@ -157,12 +157,20 @@ function validateLesson(lesson) {
     errors.push('短文过短');
   }
   if (!lesson.dialog?.turns?.length) errors.push('缺少对话');
-  if (!lesson.cloze || lesson.cloze.length < 3) errors.push('回填不足 3 题');
+  if (!lesson.cloze || lesson.cloze.length < 8) {
+    errors.push(`回填不足 8 题（现 ${lesson.cloze?.length || 0}）`);
+  }
 
   const targetSet = new Set(lesson.targetLemmas.map(cleanLemma));
+  const clozeAnswers = new Set();
   for (const c of lesson.cloze || []) {
-    if (!targetSet.has(cleanLemma(c.answer))) {
+    const a = cleanLemma(c.answer);
+    if (!targetSet.has(a)) {
       errors.push(`回填答案不在目标词: ${c.answer}`);
+    }
+    if (a) {
+      if (clozeAnswers.has(a)) errors.push(`回填答案重复: ${a}`);
+      clozeAnswers.add(a);
     }
   }
 
