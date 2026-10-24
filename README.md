@@ -65,4 +65,5 @@ flutter run
 
 ## 约定
 
-改代码后在 `docs/技术实现.md` 变更记录顶部追加一行（见 `.cursor/rules/tech-doc-changelog.mdc`）。包名暂仍 `app_starter`，产品文案在 `app/lib/core/config/app_brand.dart`。
+改代码后在 `docs/技术实现.md` 变更记录顶部追加一行（见 `.cursor/rules/tech-doc-changelog.mdc`）。  
+iOS/Android 包名：`com.bufang.learnenglish`；Dart 包名暂仍 `app_starter`；产品文案在 `app/lib/core/config/app_brand.dart`。

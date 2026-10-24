@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:app_starter/core/network/api_client.dart';
-import 'package:app_starter/core/ui/app_toast.dart';
-import 'package:app_starter/core/ui/blocking_overlay.dart';
 import 'package:app_starter/features/lesson/lesson_article_page.dart';
 import 'package:app_starter/features/today/today_models.dart';
 import 'package:app_starter/features/today/today_repository.dart';
@@ -19,7 +17,6 @@ class _TodayPageState extends State<TodayPage> {
   final _repo = TodayRepository();
   TodayPayload? _data;
   bool _loading = true;
-  bool _generating = false;
   String? _error;
 
   static const _bg = Color(0xFFF8FAFC);
@@ -29,7 +26,6 @@ class _TodayPageState extends State<TodayPage> {
   static const _hero = Color(0xFF1E3A8A);
   static const _heroLabel = Color(0xFF93C5FD);
   static const _heroMeta = Color(0xFFBFDBFE);
-  static const _blue = Color(0xFF2563EB);
 
   @override
   void initState() {
@@ -48,40 +44,13 @@ class _TodayPageState extends State<TodayPage> {
       setState(() {
         _data = data;
         _loading = false;
-        _generating = false;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _generating = false;
         _error = e is ApiException ? e.message : '加载失败';
       });
-    }
-  }
-
-  Future<void> _regenerateManual() async {
-    if (_generating) return;
-    setState(() => _generating = true);
-    try {
-      final data = await BlockingOverlay.run(
-        context,
-        child: const _GeneratingCard(),
-        task: () => _repo.regenerate(),
-      );
-      if (!mounted) return;
-      if (data != null) {
-        setState(() => _data = data);
-        AppToast.show(context, '已按你的画像生成新篇');
-      }
-    } catch (e) {
-      if (!mounted) return;
-      AppToast.show(
-        context,
-        e is ApiException ? e.message : '生成失败',
-      );
-    } finally {
-      if (mounted) setState(() => _generating = false);
     }
   }
 
@@ -136,33 +105,14 @@ class _TodayPageState extends State<TodayPage> {
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
                       children: [
-                        Row(
-                          children: [
-                            const Expanded(
-                              child: Text(
-                                '今日',
-                                style: TextStyle(
-                                  fontSize: 28,
-                                  fontWeight: FontWeight.w700,
-                                  color: _text,
-                                  height: 34 / 28,
-                                ),
-                              ),
-                            ),
-                            if (_data!.lesson.status != 'done')
-                              TextButton(
-                                onPressed:
-                                    _generating ? null : _regenerateManual,
-                                child: const Text(
-                                  '换一篇',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: _blue,
-                                  ),
-                                ),
-                              ),
-                          ],
+                        const Text(
+                          '今日',
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w700,
+                            color: _text,
+                            height: 34 / 28,
+                          ),
                         ),
                         const SizedBox(height: 12),
                         Row(
@@ -201,47 +151,6 @@ class _TodayPageState extends State<TodayPage> {
                       ],
                     ),
                   ),
-      ),
-    );
-  }
-}
-
-class _GeneratingCard extends StatelessWidget {
-  const _GeneratingCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 40),
-      padding: const EdgeInsets.fromLTRB(24, 28, 24, 28),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: const Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          CircularProgressIndicator(strokeWidth: 2.4),
-          SizedBox(height: 16),
-          Text(
-            '正在按你的画像写今日文章…',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF0F172A),
-            ),
-          ),
-          SizedBox(height: 8),
-          Text(
-            '水平 · 职业 · 场景 · 词库',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 12,
-              color: Color(0xFF94A3B8),
-            ),
-          ),
-        ],
       ),
     );
   }
