@@ -41,8 +41,12 @@ pnpm dev           # http://127.0.0.1:3001
 cd app
 flutter pub get
 flutter run
-# 或指定后端：
-# flutter run --dart-define=API_BASE_URL=http://127.0.0.1:3001
+# 连本地后端（默认）：
+# flutter run --dart-define=API_ENV=local
+# 连测试服 http://47.97.67.47:3003 ：
+# flutter run --dart-define=API_ENV=test
+# 或任意地址：
+# flutter run --dart-define=API_BASE_URL=http://47.97.67.47:3003
 ```
 
 底部四个 Tab：今日、文章库、生词本、我的。阅读与闭眼回填从今日或文章库进入，不占 Tab。
