@@ -24,19 +24,31 @@ class LessonToken {
 class LessonDef {
   const LessonDef({
     required this.gloss,
+    this.pos,
+    this.sense,
     this.context,
     this.root,
+    this.exampleEn,
+    this.exampleZh,
   });
 
   final String gloss;
+  final String? pos;
+  final String? sense;
   final String? context;
   final String? root;
+  final String? exampleEn;
+  final String? exampleZh;
 
   factory LessonDef.fromJson(Map<String, dynamic> json) {
     return LessonDef(
       gloss: json['gloss'] as String? ?? '',
+      pos: json['pos'] as String?,
+      sense: json['sense'] as String?,
       context: json['context'] as String?,
       root: json['root'] as String?,
+      exampleEn: (json['exampleEn'] ?? json['example_en']) as String?,
+      exampleZh: (json['exampleZh'] ?? json['example_zh']) as String?,
     );
   }
 }

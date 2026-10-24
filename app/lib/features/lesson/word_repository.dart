@@ -7,8 +7,12 @@ class WordLookupEntry {
     required this.lemma,
     required this.isTarget,
     required this.gloss,
+    this.pos,
+    this.sense,
     this.context,
     this.root,
+    this.exampleEn,
+    this.exampleZh,
     this.source,
   });
 
@@ -16,14 +20,22 @@ class WordLookupEntry {
   final String lemma;
   final bool isTarget;
   final String gloss;
+  final String? pos;
+  final String? sense;
   final String? context;
   final String? root;
+  final String? exampleEn;
+  final String? exampleZh;
   final String? source;
 
   LessonDef toDef() => LessonDef(
         gloss: gloss,
+        pos: pos,
+        sense: sense,
         context: context,
         root: root,
+        exampleEn: exampleEn,
+        exampleZh: exampleZh,
       );
 
   factory WordLookupEntry.fromJson(Map<String, dynamic>? json) {
@@ -32,8 +44,12 @@ class WordLookupEntry {
       lemma: json?['lemma'] as String? ?? '',
       isTarget: json?['isTarget'] == true,
       gloss: json?['gloss'] as String? ?? '',
+      pos: json?['pos'] as String?,
+      sense: json?['sense'] as String?,
       context: json?['context'] as String?,
       root: json?['root'] as String?,
+      exampleEn: (json?['exampleEn'] ?? json?['example_en']) as String?,
+      exampleZh: (json?['exampleZh'] ?? json?['example_zh']) as String?,
       source: json?['source'] as String?,
     );
   }

@@ -54,9 +54,7 @@ async function computeStreak(userId) {
     current: streak.currentStreak,
     longest: streak.longestStreak,
     footnote:
-      streak.currentStreak > 0
-        ? '读完日课或复习可保连胜'
-        : '读完日课或复习到期词可打卡',
+      streak.currentStreak > 0 ? '今日完成可保连胜' : '完成日课可打卡',
     freezeRemaining: streak.freezeRemaining,
   };
 }

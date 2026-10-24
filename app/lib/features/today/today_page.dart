@@ -55,9 +55,11 @@ class _TodayPageState extends State<TodayPage> {
   }
 
   Future<void> _startReading() async {
+    final id = _data?.lesson.id;
+    if (id == null || id <= 0) return;
     final result = await Navigator.of(context).push<bool>(
       MaterialPageRoute<bool>(
-        builder: (_) => const LessonArticlePage(),
+        builder: (_) => LessonArticlePage(lessonId: id),
       ),
     );
     if (result == true || mounted) {

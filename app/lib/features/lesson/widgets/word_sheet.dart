@@ -4,7 +4,7 @@ import 'package:app_starter/features/lesson/lesson_models.dart';
 import 'package:app_starter/features/lesson/lesson_tts.dart';
 import 'package:app_starter/features/lesson/word_repository.dart';
 
-/// 点词半屏：本地 defs 先展示，再走 lookup 补全。
+/// 点词半屏：有完整释义才展示；否则整块 loading。
 Future<void> showWordSheet({
   required BuildContext context,
   required LessonToken token,
@@ -87,31 +87,73 @@ class _WordSheetBodyState extends State<_WordSheetBody> {
   static const _panel = Color(0xFFF8FAFC);
   static const _border = Color(0xFFE2E8F0);
 
-  late String _gloss;
-  late String _contextLine;
-  late String _root;
+  String _gloss = '';
+  String _pos = '';
+  String _sense = '';
+  String _contextLine = '';
+  String _root = '';
+  String _exampleEn = '';
+  String _exampleZh = '';
   late bool _isTarget;
   bool _loading = false;
+  String? _error;
 
-  bool _isWeak(LessonDef? def) {
-    if (def == null) return true;
+  /// 仅当有完整 LLM 详解（释义 + 详解 + 例句）才算可展示。
+  bool _isRich(LessonDef? def) {
+    if (def == null) return false;
     final g = def.gloss.trim();
-    if (g.isEmpty) return true;
-    if (g.toLowerCase() == widget.lemma.toLowerCase()) return true;
-    final c = (def.context ?? '').trim();
-    if (c.isEmpty || c == '本课中的 ${widget.lemma}') return true;
-    return false;
+    if (g.isEmpty) return false;
+    if (g.toLowerCase() == widget.lemma.toLowerCase()) return false;
+    if ((def.sense ?? '').trim().isEmpty) return false;
+    if ((def.exampleEn ?? '').trim().isEmpty) return false;
+    return true;
+  }
+
+  bool get _hasRichContent =>
+      _gloss.isNotEmpty &&
+      _sense.isNotEmpty &&
+      _exampleEn.isNotEmpty &&
+      _gloss.toLowerCase() != widget.lemma.toLowerCase();
+
+  void _clearGloss() {
+    _gloss = '';
+    _pos = '';
+    _sense = '';
+    _contextLine = '';
+    _root = '';
+    _exampleEn = '';
+    _exampleZh = '';
+  }
+
+  void _applyEntry(WordLookupEntry entry) {
+    _gloss = entry.gloss.trim();
+    _pos = (entry.pos ?? '').trim();
+    _sense = (entry.sense ?? '').trim();
+    _contextLine = (entry.context ?? '').trim();
+    _root = (entry.root ?? '').trim();
+    _exampleEn = (entry.exampleEn ?? '').trim();
+    _exampleZh = (entry.exampleZh ?? '').trim();
+    _isTarget = entry.isTarget || widget.isTarget;
+  }
+
+  void _applyDef(LessonDef def) {
+    _gloss = def.gloss.trim();
+    _pos = (def.pos ?? '').trim();
+    _sense = (def.sense ?? '').trim();
+    _contextLine = (def.context ?? '').trim();
+    _root = (def.root ?? '').trim();
+    _exampleEn = (def.exampleEn ?? '').trim();
+    _exampleZh = (def.exampleZh ?? '').trim();
   }
 
   @override
   void initState() {
     super.initState();
-    final def = widget.initialDef;
-    _gloss = def?.gloss.trim().isNotEmpty == true ? def!.gloss : '加载释义中…';
-    _contextLine = def?.context ?? '';
-    _root = def?.root ?? widget.lemma;
     _isTarget = widget.isTarget;
-    if (_isWeak(def)) {
+    if (_isRich(widget.initialDef)) {
+      _applyDef(widget.initialDef!);
+    } else {
+      _clearGloss();
       _loading = true;
       _fetchLookup();
     }
@@ -126,26 +168,150 @@ class _WordSheetBodyState extends State<_WordSheetBody> {
       );
       if (!mounted) return;
       setState(() {
-        _gloss = entry.gloss.isNotEmpty ? entry.gloss : widget.lemma;
-        _contextLine = entry.context ?? '';
-        _root = entry.root ?? widget.lemma;
-        _isTarget = entry.isTarget || widget.isTarget;
+        _applyEntry(entry);
+        // 仍不完整则继续只显示 loading，不露出半截释义
+        if (!_hasRichContent) {
+          _clearGloss();
+          _error = '释义生成中，请稍后再点';
+        } else {
+          _error = null;
+        }
         _loading = false;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
+        _clearGloss();
         _loading = false;
-        if (_gloss == '加载释义中…') {
-          _gloss = e is ApiException ? e.message : '（暂无释义）';
-        }
+        _error = e is ApiException ? e.message : '释义加载失败';
       });
     }
   }
 
+  Widget _section(String label, String body, {bool emphasize = false}) {
+    if (body.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: _muted,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            body,
+            style: TextStyle(
+              fontSize: emphasize ? 14 : 13,
+              color: emphasize ? _text : _body,
+              height: 1.45,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _glossPanel() {
+    if (_loading) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 28),
+        decoration: BoxDecoration(
+          color: _panel,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: const Column(
+          children: [
+            SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            SizedBox(height: 10),
+            Text(
+              '正在生成释义…',
+              style: TextStyle(fontSize: 13, color: _muted),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (!_hasRichContent) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 12),
+        decoration: BoxDecoration(
+          color: _panel,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Text(
+          _error ?? '暂无释义',
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 13, color: _muted),
+        ),
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: _panel,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '释义',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: _muted,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            _pos.isNotEmpty ? '$_pos $_gloss' : _gloss,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: _text,
+              height: 1.4,
+            ),
+          ),
+          _section('用法详解', _sense, emphasize: true),
+          _section(
+            '例句',
+            [
+              if (_exampleEn.isNotEmpty) _exampleEn,
+              if (_exampleZh.isNotEmpty) _exampleZh,
+            ].join('\n'),
+          ),
+          _section(
+            '语境',
+            _contextLine.isNotEmpty && _contextLine != _sense
+                ? _contextLine
+                : '',
+          ),
+          _section('原型 · 词根', _root),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final maxH = MediaQuery.sizeOf(context).height * 0.72;
     return Container(
+      constraints: BoxConstraints(maxHeight: maxH),
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -190,82 +356,8 @@ class _WordSheetBodyState extends State<_WordSheetBody> {
             ),
           ),
           const SizedBox(height: 10),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: _panel,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Expanded(
-                      child: Text(
-                        '直译',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: _muted,
-                        ),
-                      ),
-                    ),
-                    if (_loading)
-                      const SizedBox(
-                        width: 12,
-                        height: 12,
-                        child: CircularProgressIndicator(strokeWidth: 1.6),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  _gloss,
-                  style: const TextStyle(fontSize: 14, color: _text),
-                ),
-                if (_contextLine.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  const Text(
-                    '语境',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: _muted,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _contextLine,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: _body,
-                      height: 18 / 13,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 8),
-                const Text(
-                  '原型 · 词根',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    color: _muted,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  _root,
-                  style: const TextStyle(fontSize: 13, color: _body),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  '上划看更多 ›',
-                  style: TextStyle(fontSize: 12, color: _blue),
-                ),
-              ],
-            ),
+          Flexible(
+            child: SingleChildScrollView(child: _glossPanel()),
           ),
           const SizedBox(height: 10),
           Row(
@@ -274,22 +366,25 @@ class _WordSheetBodyState extends State<_WordSheetBody> {
                 child: SizedBox(
                   height: 48,
                   child: FilledButton(
-                    onPressed: () {
-                      final g = _gloss.trim();
-                      final gloss = (g.isEmpty ||
-                              g == '加载释义中…' ||
-                              g == '（暂无释义）' ||
-                              g.toLowerCase() == widget.lemma.toLowerCase())
-                          ? null
-                          : g;
-                      if (_isTarget) {
-                        widget.onKnow(gloss);
-                      } else {
-                        widget.onUnknown(gloss);
-                      }
-                    },
+                    onPressed: _loading
+                        ? null
+                        : () {
+                            final g = _gloss.trim();
+                            final gloss = (!_hasRichContent ||
+                                    g.isEmpty ||
+                                    g.toLowerCase() ==
+                                        widget.lemma.toLowerCase())
+                                ? null
+                                : (_pos.isNotEmpty ? '$_pos $g' : g);
+                            if (_isTarget) {
+                              widget.onKnow(gloss);
+                            } else {
+                              widget.onUnknown(gloss);
+                            }
+                          },
                     style: FilledButton.styleFrom(
                       backgroundColor: _blue,
+                      disabledBackgroundColor: const Color(0xFFBFDBFE),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),

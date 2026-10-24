@@ -13,11 +13,19 @@ import 'package:app_starter/features/shell/main_shell.dart';
 
 /// 日课短文：对齐 Figma Phone/日课短文。
 class LessonArticlePage extends StatefulWidget {
-  const LessonArticlePage({super.key, this.lesson, this.firstDay = false});
+  const LessonArticlePage({
+    super.key,
+    this.lesson,
+    this.lessonId,
+    this.firstDay = false,
+  });
 
   final Lesson? lesson;
 
-  /// 画像完成后进第一篇：用更完整的生成中界面。
+  /// 已有日课 id（如从今日进入）：直接拉取，不走「生成中」页。
+  final int? lessonId;
+
+  /// 画像完成后进第一篇：用生成中界面（可能触发后端首次成文）。
   final bool firstDay;
 
   @override
@@ -69,7 +77,13 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
       return;
     }
     try {
-      final lesson = await _repo.today();
+      final Lesson lesson;
+      if (widget.lessonId != null) {
+        lesson = await _repo.getById(widget.lessonId!);
+      } else {
+        // 无 id：拉今日（首日可能现场生成）
+        lesson = await _repo.today();
+      }
       if (!mounted) return;
       setState(() {
         _lesson = lesson;
@@ -188,16 +202,19 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return Scaffold(
-        backgroundColor: const Color(0xFFF8FAFC),
-        body: LessonGeneratingView(
-          title: widget.firstDay || widget.lesson == null
-              ? '正在写你的 Day 1'
-              : '正在准备今日文章',
-          subtitle: widget.firstDay || widget.lesson == null
-              ? '按水平 · 职业 · 场景 · 词库定制第一篇'
-              : '按你的画像生成今日短文与回填',
-        ),
+      // 仅首日成文用完整生成页；今日「开始阅读」只是打开已有文章
+      if (widget.firstDay) {
+        return const Scaffold(
+          backgroundColor: Color(0xFFF8FAFC),
+          body: LessonGeneratingView(
+            title: '正在写你的 Day 1',
+            subtitle: '按水平 · 职业 · 场景 · 词库定制第一篇',
+          ),
+        );
+      }
+      return const Scaffold(
+        backgroundColor: _bg,
+        body: Center(child: CircularProgressIndicator(strokeWidth: 2)),
       );
     }
 
