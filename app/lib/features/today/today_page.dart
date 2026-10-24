@@ -33,9 +33,10 @@ class _TodayPageState extends State<TodayPage> {
     _load();
   }
 
-  Future<void> _load() async {
+  Future<void> _load({bool silent = false}) async {
+    final keepContent = silent && _data != null;
     setState(() {
-      _loading = true;
+      if (!keepContent) _loading = true;
       _error = null;
     });
     try {
@@ -49,7 +50,10 @@ class _TodayPageState extends State<TodayPage> {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = e is ApiException ? e.message : '加载失败';
+        // 静默刷新失败时保留旧数据，避免整页闪成错误态
+        if (!keepContent) {
+          _error = e is ApiException ? e.message : '加载失败';
+        }
       });
     }
   }
@@ -57,14 +61,13 @@ class _TodayPageState extends State<TodayPage> {
   Future<void> _startReading() async {
     final id = _data?.lesson.id;
     if (id == null || id <= 0) return;
-    final result = await Navigator.of(context).push<bool>(
+    await Navigator.of(context).push<bool>(
       MaterialPageRoute<bool>(
         builder: (_) => LessonArticlePage(lessonId: id),
       ),
     );
-    if (result == true || mounted) {
-      await _load();
-    }
+    // 侧滑返回与点返回都会走到这里；静默刷新避免今日页闪 loading
+    if (mounted) await _load(silent: true);
   }
 
   Future<void> _goReview() async {
@@ -73,7 +76,7 @@ class _TodayPageState extends State<TodayPage> {
         builder: (_) => const ReviewPage(),
       ),
     );
-    if (mounted) _load();
+    if (mounted) await _load(silent: true);
   }
 
   @override
