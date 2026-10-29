@@ -13,6 +13,7 @@ module.exports = {
   },
   article: {
     title: 'The Big Move',
+    zhTitle: '大搬迁',
     zhLead:
       '各位：因本层翻新，部门下周一搬至五楼。新办公区无障碍，工位配双显示器。请周五前打包个人物品；复印机装在走廊旁；分机号改为512。设备故障请立即报修。',
     zhPlain:

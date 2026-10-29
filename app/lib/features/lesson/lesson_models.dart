@@ -93,6 +93,7 @@ class LessonScene {
 class LessonArticle {
   const LessonArticle({
     required this.title,
+    required this.zhTitle,
     required this.zhLead,
     required this.zhPlain,
     required this.enPlain,
@@ -100,6 +101,8 @@ class LessonArticle {
   });
 
   final String title;
+  /// 英文标题的中文译名。
+  final String zhTitle;
   final String zhLead;
   /// 短文完整中译；目标词对应中文可用 【】 标出。
   final String zhPlain;
@@ -113,10 +116,21 @@ class LessonArticle {
     return zhLead.trim();
   }
 
+  /// 短文标题行：英文 + 中文译名；[fallbackZh] 用于旧课无 zhTitle 时（如用 theme）。
+  String titleDisplay({String fallbackZh = ''}) {
+    final en = title.trim();
+    final zh = zhTitle.trim().isNotEmpty ? zhTitle.trim() : fallbackZh.trim();
+    if (en.isEmpty) return zh;
+    if (zh.isEmpty) return en;
+    return '$en（$zh）';
+  }
+
   factory LessonArticle.fromJson(Map<String, dynamic>? json) {
     final raw = json?['enTokens'] ?? json?['en_tokens'];
     return LessonArticle(
       title: json?['title'] as String? ?? '',
+      zhTitle:
+          json?['zhTitle'] as String? ?? json?['zh_title'] as String? ?? '',
       zhLead: json?['zhLead'] as String? ?? json?['zh_lead'] as String? ?? '',
       zhPlain:
           json?['zhPlain'] as String? ?? json?['zh_plain'] as String? ?? '',

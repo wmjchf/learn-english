@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// 中文译文：将 【…】 或额外短语标成与目标词同款黄底。
+/// 中文译文：将 【…】 或额外短语标成与目标词同款黄底（纯 TextSpan，避免行内错位）。
 class ZhMarkedText extends StatelessWidget {
   const ZhMarkedText({
     super.key,
@@ -20,13 +20,13 @@ class ZhMarkedText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final spans = _buildSpans(text, extraHighlights, fontSize);
+    final spans = _buildSpans(text, extraHighlights);
     if (spans.isEmpty) return const SizedBox.shrink();
     return Text.rich(
       TextSpan(
         style: TextStyle(
           fontSize: fontSize,
-          height: 22 / fontSize,
+          height: 1.55,
           color: color,
         ),
         children: spans,
@@ -34,11 +34,7 @@ class ZhMarkedText extends StatelessWidget {
     );
   }
 
-  static List<InlineSpan> _buildSpans(
-    String raw,
-    List<String> extras,
-    double fontSize,
-  ) {
+  static List<InlineSpan> _buildSpans(String raw, List<String> extras) {
     final marked = <_Seg>[];
     final re = RegExp(r'【([^】]+)】');
     var start = 0;
@@ -66,21 +62,16 @@ class ZhMarkedText extends StatelessWidget {
     final out = <InlineSpan>[];
     for (final seg in marked) {
       if (seg.hl || phrases.isEmpty) {
-        out.add(_span(seg.text, seg.hl, fontSize));
+        out.add(_span(seg.text, seg.hl));
         continue;
       }
-      out.addAll(_highlightPhrases(seg.text, phrases, fontSize));
+      out.addAll(_highlightPhrases(seg.text, phrases));
     }
     return out;
   }
 
-  static List<InlineSpan> _highlightPhrases(
-    String text,
-    List<String> phrases,
-    double fontSize,
-  ) {
+  static List<InlineSpan> _highlightPhrases(String text, List<String> phrases) {
     if (text.isEmpty) return const [];
-    // 找最早出现的最长短语
     var bestStart = -1;
     var bestLen = 0;
     String? best;
@@ -96,42 +87,25 @@ class ZhMarkedText extends StatelessWidget {
       }
     }
     if (best == null || bestStart < 0) {
-      return [_span(text, false, fontSize)];
+      return [_span(text, false)];
     }
     return [
-      if (bestStart > 0)
-        ..._highlightPhrases(text.substring(0, bestStart), phrases, fontSize),
-      _span(best, true, fontSize),
+      if (bestStart > 0) ..._highlightPhrases(text.substring(0, bestStart), phrases),
+      _span(best, true),
       if (bestStart + bestLen < text.length)
-        ..._highlightPhrases(
-          text.substring(bestStart + bestLen),
-          phrases,
-          fontSize,
-        ),
+        ..._highlightPhrases(text.substring(bestStart + bestLen), phrases),
     ];
   }
 
-  static InlineSpan _span(String text, bool hl, double fontSize) {
+  static InlineSpan _span(String text, bool hl) {
     if (text.isEmpty) return const TextSpan(text: '');
     if (!hl) return TextSpan(text: text);
-    return WidgetSpan(
-      alignment: PlaceholderAlignment.baseline,
-      baseline: TextBaseline.ideographic,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 2),
-        decoration: BoxDecoration(
-          color: _hlBg,
-          borderRadius: BorderRadius.circular(3),
-        ),
-        child: Text(
-          text,
-          style: TextStyle(
-            fontSize: fontSize,
-            height: 22 / fontSize,
-            fontWeight: FontWeight.w700,
-            color: _hlFg,
-          ),
-        ),
+    return TextSpan(
+      text: text,
+      style: const TextStyle(
+        fontWeight: FontWeight.w700,
+        color: _hlFg,
+        backgroundColor: _hlBg,
       ),
     );
   }
@@ -151,7 +125,9 @@ List<String> glossHighlightPhrases(Iterable<String> glosses) {
     if (g.isEmpty) continue;
     for (final part in g.split(RegExp(r'[；;，,/、|]'))) {
       final p = part.trim().replaceAll(RegExp(r'^[a-zA-Z.\s]+'), '').trim();
-      if (p.length >= 2 && p.length <= 8 && RegExp(r'[\u4e00-\u9fff]').hasMatch(p)) {
+      if (p.length >= 2 &&
+          p.length <= 8 &&
+          RegExp(r'[\u4e00-\u9fff]').hasMatch(p)) {
         out.add(p);
       }
     }

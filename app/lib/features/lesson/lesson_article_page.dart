@@ -402,7 +402,7 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '📖 短文：${article.title}',
+                      '📖 短文：${article.titleDisplay(fallbackZh: lesson.theme)}',
                       style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
