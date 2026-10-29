@@ -6,7 +6,7 @@ import 'package:app_starter/features/lesson/lesson_tts.dart';
 import 'package:app_starter/features/lesson/word_repository.dart';
 import 'package:app_starter/features/shell/main_shell.dart';
 
-/// 闭眼回填：全对打卡回今日；有错则留页、揭晓答案、错词进待巩固。
+/// 闭眼回填：一题一判；全对打卡回今日；错题揭晓并进待巩固，改对后再进下一题。
 class LessonClozePage extends StatefulWidget {
   const LessonClozePage({super.key, required this.lesson});
 
@@ -20,12 +20,17 @@ class _LessonClozePageState extends State<LessonClozePage> {
   final _repo = LessonRepository();
   final _words = WordRepository();
   final _tts = LessonTts();
-  late final List<TextEditingController> _controllers;
+  final _focus = FocusNode();
+  late final TextEditingController _controller;
   late final List<bool?> _results;
-  /// 是否已至少提交过一次（用于展示正确答案）
-  bool _revealed = false;
-  int _wrongCount = 0;
+
+  int _index = 0;
+  /// 当前题是否已判定过（错题会揭晓答案）
+  bool _judged = false;
+  int _wrongTotal = 0;
   bool _submitting = false;
+  /// 答对后自动切题中，防止连点
+  bool _advancing = false;
 
   static const _bg = Color(0xFFF5F6F8);
   static const _blue = Color(0xFF1A56DB);
@@ -39,19 +44,24 @@ class _LessonClozePageState extends State<LessonClozePage> {
   static const _warnSoft = Color(0xFFFEF3C7);
   static const _warnText = Color(0xFFB45309);
 
+  List<ClozeItem> get _items => widget.lesson.content.cloze;
+
+  ClozeItem get _current => _items[_index];
+
   @override
   void initState() {
     super.initState();
-    final n = widget.lesson.content.cloze.length;
-    _controllers = List.generate(n, (_) => TextEditingController());
-    _results = List.filled(n, null);
+    _controller = TextEditingController();
+    _results = List.filled(_items.length, null);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focus.requestFocus();
+    });
   }
 
   @override
   void dispose() {
-    for (final c in _controllers) {
-      c.dispose();
-    }
+    _controller.dispose();
+    _focus.dispose();
     _tts.dispose();
     super.dispose();
   }
@@ -59,41 +69,20 @@ class _LessonClozePageState extends State<LessonClozePage> {
   String _norm(String s) =>
       s.trim().toLowerCase().replaceAll(RegExp(r'[^a-z]'), '');
 
-  Future<void> _submit() async {
-    if (_submitting) return;
-    final items = widget.lesson.content.cloze;
-    var allOk = true;
-    var wrong = 0;
-    final wrongLemmas = <String>[];
-    for (var i = 0; i < items.length; i++) {
-      final ok = _norm(_controllers[i].text) == _norm(items[i].answer);
-      _results[i] = ok;
-      if (!ok) {
-        allOk = false;
-        wrong += 1;
-        final a = items[i].answer.trim().toLowerCase();
-        if (a.isNotEmpty) wrongLemmas.add(a);
-      }
-    }
-    setState(() {
-      _revealed = true;
-      _wrongCount = wrong;
-    });
+  Future<void> _markWrongVocab(String answer) async {
+    final lemma = answer.trim().toLowerCase();
+    if (lemma.isEmpty) return;
+    try {
+      final gloss = widget.lesson.content.defFor(lemma)?.gloss;
+      await _words.markVocab(
+        lemma,
+        lessonId: widget.lesson.id,
+        gloss: gloss,
+      );
+    } catch (_) {}
+  }
 
-    if (!allOk) {
-      for (final lemma in wrongLemmas) {
-        try {
-          final gloss = widget.lesson.content.defFor(lemma)?.gloss;
-          await _words.markVocab(
-            lemma,
-            lessonId: widget.lesson.id,
-            gloss: gloss,
-          );
-        } catch (_) {}
-      }
-      return;
-    }
-
+  Future<void> _completeLesson() async {
     setState(() => _submitting = true);
     var toast = '打卡成功';
     try {
@@ -115,12 +104,96 @@ class _LessonClozePageState extends State<LessonClozePage> {
     );
   }
 
+  void _goNext() {
+    if (_index >= _items.length - 1) {
+      _completeLesson();
+      return;
+    }
+    setState(() {
+      _index += 1;
+      _judged = false;
+      _controller.clear();
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focus.requestFocus();
+    });
+  }
+
+  Future<void> _onCta() async {
+    if (_submitting || _advancing || _items.isEmpty) return;
+
+    // 已判对：进下一题 / 打卡
+    if (_judged && _results[_index] == true) {
+      _goNext();
+      return;
+    }
+
+    // 已判错：必须改对才能继续
+    if (_judged && _results[_index] == false) {
+      final ok = _norm(_controller.text) == _norm(_current.answer);
+      if (!ok) {
+        AppToast.show(context, '请先改对再继续');
+        return;
+      }
+      setState(() {
+        _results[_index] = true;
+      });
+      _goNext();
+      return;
+    }
+
+    // 首次判定当前题
+    final ok = _norm(_controller.text) == _norm(_current.answer);
+    setState(() {
+      _judged = true;
+      _results[_index] = ok;
+      if (!ok) _wrongTotal += 1;
+    });
+
+    if (ok) {
+      _advancing = true;
+      // 答对：稍顿一下再进下一题，让用户看到「正确」
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+      if (!mounted) return;
+      _advancing = false;
+      _goNext();
+      return;
+    }
+
+    await _markWrongVocab(_current.answer);
+  }
+
+  String get _ctaLabel {
+    if (_submitting) return '提交中…';
+    if (!_judged) {
+      return _index >= _items.length - 1 ? '判定并打卡' : '判定';
+    }
+    if (_results[_index] == true) {
+      return _index >= _items.length - 1 ? '打卡' : '下一题';
+    }
+    return _index >= _items.length - 1 ? '改对后打卡' : '改对后继续';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final items = widget.lesson.content.cloze;
-    final ctaLabel = _submitting
-        ? '提交中…'
-        : (_revealed && _wrongCount > 0 ? '改完再提交' : '提交回填');
+    if (_items.isEmpty) {
+      return Scaffold(
+        backgroundColor: _bg,
+        body: SafeArea(
+          child: Center(
+            child: TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('暂无回填题，返回'),
+            ),
+          ),
+        ),
+      );
+    }
+
+    final item = _current;
+    final result = _results[_index];
+    final showAnswer = _judged && result == false;
+    final total = _items.length;
 
     return Scaffold(
       backgroundColor: _bg,
@@ -132,7 +205,8 @@ class _LessonClozePageState extends State<LessonClozePage> {
               child: Row(
                 children: [
                   GestureDetector(
-                    onTap: _submitting ? null : () => Navigator.of(context).pop(),
+                    onTap:
+                        _submitting ? null : () => Navigator.of(context).pop(),
                     behavior: HitTestBehavior.opaque,
                     child: const Row(
                       children: [
@@ -182,17 +256,17 @@ class _LessonClozePageState extends State<LessonClozePage> {
                 ),
               ),
             ),
-            const Padding(
-              padding: EdgeInsets.fromLTRB(24, 0, 24, 12),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  '遮住上文，根据语境拼出目标词。',
-                  style: TextStyle(fontSize: 13, color: _muted),
+                  '第 ${_index + 1} / $total 题 · 遮住上文，根据语境拼出目标词。',
+                  style: const TextStyle(fontSize: 13, color: _muted),
                 ),
               ),
             ),
-            if (_revealed && _wrongCount > 0)
+            if (_wrongTotal > 0)
               Padding(
                 padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
                 child: Container(
@@ -206,7 +280,9 @@ class _LessonClozePageState extends State<LessonClozePage> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    '$_wrongCount 题不对，正确答案已标出 · 错词已进待巩固\n改对后再提交即可打卡',
+                    showAnswer
+                        ? '这题不对，正确答案已标出 · 已进待巩固\n改对后再继续'
+                        : '已累计 $_wrongTotal 题错过 · 错词已进待巩固',
                     style: const TextStyle(
                       fontSize: 13,
                       color: _warnText,
@@ -217,15 +293,10 @@ class _LessonClozePageState extends State<LessonClozePage> {
                 ),
               ),
             Expanded(
-              child: ListView.separated(
+              child: ListView(
                 padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-                itemCount: items.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 10),
-                itemBuilder: (context, i) {
-                  final item = items[i];
-                  final result = _results[i];
-                  final showAnswer = _revealed && result == false;
-                  return Container(
+                children: [
+                  Container(
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
                       color: Colors.white,
@@ -244,7 +315,7 @@ class _LessonClozePageState extends State<LessonClozePage> {
                           children: [
                             Expanded(
                               child: Text(
-                                '第 ${i + 1} 题',
+                                '第 ${_index + 1} 题',
                                 style: const TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
@@ -272,15 +343,17 @@ class _LessonClozePageState extends State<LessonClozePage> {
                               ),
                           ],
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          item.before,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: _muted,
-                            height: 1.4,
+                        if (item.before.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            item.before,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: _muted,
+                              height: 1.4,
+                            ),
                           ),
-                        ),
+                        ],
                         const SizedBox(height: 8),
                         Text(
                           item.sentence.replaceAll(
@@ -296,11 +369,14 @@ class _LessonClozePageState extends State<LessonClozePage> {
                         ),
                         const SizedBox(height: 10),
                         TextField(
-                          controller: _controllers[i],
+                          controller: _controller,
+                          focusNode: _focus,
                           autocorrect: false,
                           enableSuggestions: false,
-                          enabled: !_submitting,
+                          enabled: !_submitting && result != true,
                           textCapitalization: TextCapitalization.none,
+                          textInputAction: TextInputAction.done,
+                          onSubmitted: (_) => _onCta(),
                           decoration: InputDecoration(
                             hintText: '拼写英文',
                             filled: true,
@@ -381,11 +457,12 @@ class _LessonClozePageState extends State<LessonClozePage> {
                                 ),
                                 TextButton(
                                   onPressed: () {
-                                    _controllers[i].text = item.answer;
-                                    _controllers[i].selection =
+                                    _controller.text = item.answer;
+                                    _controller.selection =
                                         TextSelection.collapsed(
                                       offset: item.answer.length,
                                     );
+                                    _focus.requestFocus();
                                   },
                                   child: const Text(
                                     '填入',
@@ -399,19 +476,21 @@ class _LessonClozePageState extends State<LessonClozePage> {
                             ),
                           ),
                         ],
-                        const SizedBox(height: 8),
-                        Text(
-                          item.after,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: _muted,
-                            height: 1.4,
+                        if (item.after.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            item.after,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: _muted,
+                              height: 1.4,
+                            ),
                           ),
-                        ),
+                        ],
                       ],
                     ),
-                  );
-                },
+                  ),
+                ],
               ),
             ),
             Padding(
@@ -420,7 +499,7 @@ class _LessonClozePageState extends State<LessonClozePage> {
                 width: double.infinity,
                 height: 48,
                 child: FilledButton(
-                  onPressed: items.isEmpty || _submitting ? null : _submit,
+                  onPressed: (_submitting || _advancing) ? null : _onCta,
                   style: FilledButton.styleFrom(
                     backgroundColor: _blue,
                     shape: RoundedRectangleBorder(
@@ -428,7 +507,7 @@ class _LessonClozePageState extends State<LessonClozePage> {
                     ),
                   ),
                   child: Text(
-                    ctaLabel,
+                    _ctaLabel,
                     style: const TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,

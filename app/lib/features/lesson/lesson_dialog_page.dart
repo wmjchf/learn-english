@@ -312,10 +312,10 @@ class _LessonDialogPageState extends State<LessonDialogPage> {
                             leading: Text(
                               '${dialog.turns[i].who}:',
                               style: const TextStyle(
-                                fontSize: 13,
+                                fontSize: 15,
                                 fontWeight: FontWeight.w700,
                                 color: _text,
-                                height: 18 / 13,
+                                height: 22 / 15,
                               ),
                             ),
                           ),

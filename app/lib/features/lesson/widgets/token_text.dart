@@ -13,7 +13,7 @@ class TokenText extends StatelessWidget {
     this.tempHighlightLemmas = const {},
     this.focusLemmas = const {},
     this.leading,
-    this.fontSize = 13,
+    this.fontSize = 15,
   });
 
   final List<LessonToken> tokens;
@@ -35,8 +35,8 @@ class TokenText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Wrap(
-      spacing: 3,
-      runSpacing: 2,
+      spacing: 4,
+      runSpacing: 4,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         ?leading,
@@ -54,7 +54,7 @@ class TokenText extends StatelessWidget {
             t.surface,
             style: TextStyle(
               fontSize: fontSize,
-              height: 18 / fontSize,
+              height: 22 / fontSize,
               fontWeight:
                   (highlight || showFocus) ? FontWeight.w700 : FontWeight.w400,
               color: showFocus

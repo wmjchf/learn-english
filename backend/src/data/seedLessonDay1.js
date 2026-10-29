@@ -6,7 +6,7 @@ module.exports = {
   title: 'The Big Move',
   generationLevel: 'B1',
   scene: {
-    title: '① 场景导入',
+    title: '① 场景导入（导读）',
     roleBackground:
       '你是公司行政部员工。楼层翻新，下周一全部门搬到五楼，主管发了全员邮件。',
     tasks: ['读懂搬迁通知', '听懂实习生报修对话', '完成底部回填'],
@@ -15,6 +15,8 @@ module.exports = {
     title: 'The Big Move',
     zhLead:
       '各位：因本层翻新，部门下周一搬至五楼。新办公区无障碍，工位配双显示器。请周五前打包个人物品；复印机装在走廊旁；分机号改为512。设备故障请立即报修。',
+    zhPlain:
+      '各位：我们部门因【翻新】将【搬迁】到五楼。新【场地】完全【无障碍】。请始终佩戴【工牌】。',
     enPlain:
       'Dear all, Our department will relocate to the fifth floor due to the renovation. The new premises are fully accessible. Wear your badge at all times.',
     enTokens: [

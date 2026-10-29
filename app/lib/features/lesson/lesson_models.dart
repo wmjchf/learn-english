@@ -67,7 +67,7 @@ class LessonScene {
   factory LessonScene.fromJson(Map<String, dynamic>? json) {
     final raw = json?['tasks'];
     return LessonScene(
-      title: json?['title'] as String? ?? '① 场景导入',
+      title: json?['title'] as String? ?? '① 场景导入（导读）',
       roleBackground: json?['roleBackground'] as String? ??
           json?['role_background'] as String? ??
           '',
@@ -94,20 +94,32 @@ class LessonArticle {
   const LessonArticle({
     required this.title,
     required this.zhLead,
+    required this.zhPlain,
     required this.enPlain,
     required this.enTokens,
   });
 
   final String title;
   final String zhLead;
+  /// 短文完整中译；目标词对应中文可用 【】 标出。
+  final String zhPlain;
   final String enPlain;
   final List<LessonToken> enTokens;
+
+  /// 展示用中译：优先完整译文，否则用导读。
+  String get zhDisplay {
+    final plain = zhPlain.trim();
+    if (plain.isNotEmpty) return plain;
+    return zhLead.trim();
+  }
 
   factory LessonArticle.fromJson(Map<String, dynamic>? json) {
     final raw = json?['enTokens'] ?? json?['en_tokens'];
     return LessonArticle(
       title: json?['title'] as String? ?? '',
       zhLead: json?['zhLead'] as String? ?? json?['zh_lead'] as String? ?? '',
+      zhPlain:
+          json?['zhPlain'] as String? ?? json?['zh_plain'] as String? ?? '',
       enPlain: json?['enPlain'] as String? ?? json?['en_plain'] as String? ?? '',
       enTokens: raw is List
           ? raw

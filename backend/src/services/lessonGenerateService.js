@@ -68,7 +68,7 @@ function buildPrompt({
 theme(中文标题 4-10 字：必须概括本篇短文的具体事件/话题，内容不同则 theme 必须不同；禁止「今日职场」「商务英语」「职场沟通」等空泛词),
 title(英文短标题，同样要具体、贴合本篇内容),
 scene:{roleBackground(中文1-2句),tasks[3]},
-article:{title(可贴合短文的英文题),zhLead(中文≤40字，点出本篇具体事),enPlain(英文55-80词，自然写入目标词)},
+article:{title(可贴合短文的英文题),zhLead(中文≤40字，点出本篇具体事),enPlain(英文55-80词，自然写入目标词),zhPlain(enPlain的完整中文翻译；目标词对应的中文必须用【】包住，如【搬迁】；勿翻译成词表)},
 dialog:{zhLead,turns:[{who,en}] 恰好3轮，对话里也可写入剩余目标词},
 cloze:[{sentence含________,hintZh,answer,before,after}] 恰好8题；answer∈目标词且互不重复
 
@@ -110,8 +110,12 @@ function normalizeLesson(raw, { targetLemmas, reviewLemmas = [], level, dayIndex
   // 列表展示用 Day N；listLabel 固定，避免模型写成「Day 1 日课」
   const listLabel = `Day ${dayIndex}`;
   const title = asString(raw.title || raw.article?.title, 'Today');
+  let sceneTitle = asString(raw.scene?.title, '① 场景导入（导读）');
+  if (sceneTitle.includes('场景导入') && !sceneTitle.includes('导读')) {
+    sceneTitle = sceneTitle.replace('场景导入', '场景导入（导读）');
+  }
   const scene = {
-    title: asString(raw.scene?.title, '① 场景导入'),
+    title: sceneTitle || '① 场景导入（导读）',
     roleBackground: asString(raw.scene?.roleBackground || raw.scene?.role_background),
     tasks: asArray(raw.scene?.tasks).map((t) => asString(t)).filter(Boolean).slice(0, 3),
   };
@@ -121,10 +125,14 @@ function normalizeLesson(raw, { targetLemmas, reviewLemmas = [], level, dayIndex
 
   const articlePlain = asString(raw.article?.enPlain || raw.article?.en_plain);
   const zhLead = asString(raw.article?.zhLead || raw.article?.zh_lead);
-  const theme = refineTheme(raw.theme, zhLead);
+  let zhPlain = asString(raw.article?.zhPlain || raw.article?.zh_plain);
+  // 模型偶发漏写完整译文：用导读兜底
+  if (!zhPlain && zhLead) zhPlain = zhLead;
+  const theme = refineTheme(raw.theme, zhLead || zhPlain);
   const article = {
     title: asString(raw.article?.title, title),
     zhLead,
+    zhPlain,
     enPlain: articlePlain,
     enTokens: tokenizeEnglish(articlePlain, targetLemmas, reviewLemmas),
   };

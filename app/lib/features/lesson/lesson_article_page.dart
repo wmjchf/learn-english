@@ -10,6 +10,7 @@ import 'package:app_starter/features/lesson/widgets/lesson_generating_view.dart'
 import 'package:app_starter/features/lesson/widgets/lesson_listen_bar.dart';
 import 'package:app_starter/features/lesson/widgets/token_text.dart';
 import 'package:app_starter/features/lesson/widgets/word_sheet.dart';
+import 'package:app_starter/features/lesson/widgets/zh_marked_text.dart';
 import 'package:app_starter/features/shell/main_shell.dart';
 
 /// 日课短文：对齐 Figma Phone/日课短文。
@@ -348,7 +349,13 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      scene.title,
+                      scene.title.contains('场景导入') &&
+                              !scene.title.contains('导读')
+                          ? scene.title.replaceFirst(
+                              '场景导入',
+                              '场景导入（导读）',
+                            )
+                          : scene.title,
                       style: const TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
@@ -403,64 +410,7 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
                         height: 18 / 13,
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _zhBg,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: _cardBorder),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              const Expanded(
-                                child: Text(
-                                  '中文导读（先读）',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                    color: _blue,
-                                    height: 15 / 11,
-                                  ),
-                                ),
-                              ),
-                              GestureDetector(
-                                onTap: () => setState(
-                                  () => _zhExpanded = !_zhExpanded,
-                                ),
-                                child: Text(
-                                  _zhExpanded ? '收起' : '展开',
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    color: _muted,
-                                    height: 15 / 11,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          if (_zhExpanded) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              article.zhLead,
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: Color(0xFF555555),
-                                height: 15 / 11,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 8),
                     TokenText(
                       tokens: article.enTokens,
                       onTap: _onToken,
@@ -468,6 +418,66 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
                       tempHighlightLemmas: _tempHl,
                       focusLemmas: _focus,
                     ),
+                    if (article.zhDisplay.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _zhBg,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: _cardBorder),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Expanded(
+                                  child: Text(
+                                    '中文翻译',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: _blue,
+                                      height: 15 / 11,
+                                    ),
+                                  ),
+                                ),
+                                GestureDetector(
+                                  onTap: () => setState(
+                                    () => _zhExpanded = !_zhExpanded,
+                                  ),
+                                  child: Text(
+                                    _zhExpanded ? '收起' : '展开',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: _muted,
+                                      height: 15 / 11,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (_zhExpanded) ...[
+                              const SizedBox(height: 6),
+                              ZhMarkedText(
+                                text: article.zhDisplay,
+                                extraHighlights: glossHighlightPhrases(
+                                  lesson.content.targetLemmas.map(
+                                    (l) =>
+                                        lesson.content.defFor(l)?.gloss ?? '',
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
