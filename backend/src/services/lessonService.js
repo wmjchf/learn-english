@@ -92,7 +92,7 @@ async function createFromAi(userId, { dayIndex = 1 } = {}) {
   const generated = await lessonGenerateService.generateLessonForUser(userId, {
     dayIndex,
   });
-  return insertLesson(userId, {
+  const lesson = await insertLesson(userId, {
     bankId: generated.bankId,
     dayIndex,
     localDate,
@@ -100,6 +100,20 @@ async function createFromAi(userId, { dayIndex = 1 } = {}) {
     source: 'personalized',
     level: generated.level,
   });
+  // 成文即推进词窗（勿等完课）：否则未读完的多天会抽到同一批词
+  await advanceCursor(userId, generated.lesson?.targetLemmas);
+  return lesson;
+}
+
+async function advanceCursor(userId, targetLemmas) {
+  const n = Array.isArray(targetLemmas) ? targetLemmas.length : 0;
+  if (!n) return;
+  await pool.query(
+    `UPDATE user_plans
+     SET cursor_ord = cursor_ord + :n
+     WHERE user_id = :userId`,
+    { userId, n },
+  );
 }
 
 /** 只走 AI 按画像生成；无 key / 失败直接抛错。 */
@@ -306,6 +320,7 @@ async function regenerateToday(userId) {
   const generated = await lessonGenerateService.generateLessonForUser(userId, {
     dayIndex,
     lemmaOffset,
+    exceptLessonId: rows[0]?.id || null,
   });
 
   if (rows.length) {
@@ -331,10 +346,11 @@ async function regenerateToday(userId) {
         level: generated.level,
       },
     );
+    // 换一篇：不重复推进 cursor（词窗已在首成时推进）
     return getById(rows[0].id, userId);
   }
 
-  return insertLesson(userId, {
+  const lesson = await insertLesson(userId, {
     bankId: generated.bankId,
     dayIndex,
     localDate,
@@ -342,6 +358,8 @@ async function regenerateToday(userId) {
     source: 'personalized',
     level: generated.level,
   });
+  await advanceCursor(userId, generated.lesson?.targetLemmas);
+  return lesson;
 }
 
 async function markReading(lessonId, userId) {
@@ -390,15 +408,7 @@ async function markDone(lessonId, userId, opts = {}) {
     });
   }
 
-  // 推进词库指针（仅首次完课）
-  if (!wasDone && targets.length) {
-    await pool.query(
-      `UPDATE user_plans
-       SET cursor_ord = cursor_ord + :n
-       WHERE user_id = :userId`,
-      { userId, n: targets.length },
-    );
-  }
+  // 词库指针在成文时已推进，完课不再重复 +n
 
   const streakService = require('./streakService');
   const checkin = wasDone
@@ -547,6 +557,7 @@ async function manualGenerate(userId) {
       source: 'personalized',
       level: generated.level,
     });
+    await advanceCursor(userId, generated.lesson?.targetLemmas);
     return { lesson, quota: quotaAfter };
   } catch (err) {
     // 生成失败退还额度

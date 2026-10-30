@@ -112,10 +112,26 @@ class _EditProfilePageState extends State<EditProfilePage> {
       widget.hero?.generationLevel ??
       _ability;
 
-  String _labels(List<String> codes, CatalogList? list, {String empty = '未选'}) {
+  String _labels(
+    List<String> codes,
+    CatalogList? list, {
+    String empty = '未选',
+    String? customRaw,
+  }) {
     if (codes.isEmpty || list == null) return empty;
-    final map = {for (final i in list.items) i.code: i.label};
-    final labels = codes.map((c) => map[c] ?? c).toList();
+    final map = {for (final i in list.items) i.code: i};
+    final labels = <String>[];
+    for (final c in codes) {
+      final item = map[c];
+      if (item != null &&
+          item.allowCustom &&
+          customRaw != null &&
+          customRaw.trim().isNotEmpty) {
+        labels.add(customRaw.trim());
+      } else {
+        labels.add(item?.label ?? c);
+      }
+    }
     return labels.isEmpty ? empty : labels.join(' · ');
   }
 
@@ -212,7 +228,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       initial: profile.interests.toSet(),
     );
     if (result == null || !mounted) return;
-    await _patch({'interests': result.toList()});
+    await _patch({'interests': result.codes.toList()});
   }
 
   Future<void> _editScenes() async {
@@ -224,9 +240,14 @@ class _EditProfilePageState extends State<EditProfilePage> {
       hint: '最多 ${list.maxSelect} 个',
       list: list,
       initial: profile.scenes.toSet(),
+      initialRaw: profile.sceneRaw,
+      allowCustomInput: true,
     );
     if (result == null || !mounted) return;
-    await _patch({'scenes': result.toList()});
+    await _patch({
+      'scenes': result.codes.toList(),
+      'sceneRaw': result.raw,
+    });
   }
 
   Future<void> _editJob() async {
@@ -369,13 +390,15 @@ class _EditProfilePageState extends State<EditProfilePage> {
     }
   }
 
-  Future<Set<String>?> _openMultiPicker({
+  Future<_MultiPick?> _openMultiPicker({
     required String title,
     required String hint,
     required CatalogList list,
     required Set<String> initial,
+    String? initialRaw,
+    bool allowCustomInput = false,
   }) {
-    return showModalBottomSheet<Set<String>>(
+    return showModalBottomSheet<_MultiPick>(
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,
@@ -389,6 +412,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
         hint: hint,
         list: list,
         initial: initial,
+        initialRaw: initialRaw,
+        allowCustomInput: allowCustomInput,
       ),
     );
   }
@@ -482,6 +507,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                                   value: _labels(
                                     _profile?.scenes ?? const [],
                                     _scenes,
+                                    customRaw: _profile?.sceneRaw,
                                   ),
                                   footnote: '最多 3 个',
                                   onTap: _busy ? null : _editScenes,
@@ -916,18 +942,28 @@ class _NavRow extends StatelessWidget {
   }
 }
 
+class _MultiPick {
+  const _MultiPick({required this.codes, this.raw});
+  final Set<String> codes;
+  final String? raw;
+}
+
 class _MultiPickerSheet extends StatefulWidget {
   const _MultiPickerSheet({
     required this.title,
     required this.hint,
     required this.list,
     required this.initial,
+    this.initialRaw,
+    this.allowCustomInput = false,
   });
 
   final String title;
   final String hint;
   final CatalogList list;
   final Set<String> initial;
+  final String? initialRaw;
+  final bool allowCustomInput;
 
   @override
   State<_MultiPickerSheet> createState() => _MultiPickerSheetState();
@@ -935,11 +971,32 @@ class _MultiPickerSheet extends StatefulWidget {
 
 class _MultiPickerSheetState extends State<_MultiPickerSheet> {
   late Set<String> _selected;
+  late final TextEditingController _raw;
 
   @override
   void initState() {
     super.initState();
     _selected = {...widget.initial};
+    _raw = TextEditingController(text: widget.initialRaw ?? '');
+  }
+
+  @override
+  void dispose() {
+    _raw.dispose();
+    super.dispose();
+  }
+
+  bool get _needsCustom {
+    if (!widget.allowCustomInput) return false;
+    return _selected.any(
+      (c) => widget.list.items.any((i) => i.code == c && i.allowCustom),
+    );
+  }
+
+  bool get _canSave {
+    if (_selected.isEmpty) return false;
+    if (_needsCustom && _raw.text.trim().isEmpty) return false;
+    return true;
   }
 
   void _toggle(CatalogItem item) {
@@ -947,6 +1004,7 @@ class _MultiPickerSheetState extends State<_MultiPickerSheet> {
     setState(() {
       if (_selected.contains(item.code)) {
         _selected.remove(item.code);
+        if (item.allowCustom) _raw.clear();
       } else if (_selected.length < max) {
         _selected.add(item.code);
       } else {
@@ -958,8 +1016,9 @@ class _MultiPickerSheetState extends State<_MultiPickerSheet> {
   @override
   Widget build(BuildContext context) {
     final bottom = MediaQuery.paddingOf(context).bottom;
+    final inset = MediaQuery.viewInsetsOf(context).bottom;
     return Padding(
-      padding: EdgeInsets.fromLTRB(20, 16, 20, 16 + bottom),
+      padding: EdgeInsets.fromLTRB(20, 16, 20, 16 + bottom + inset),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -986,10 +1045,49 @@ class _MultiPickerSheetState extends State<_MultiPickerSheet> {
               maxHeight: MediaQuery.sizeOf(context).height * 0.5,
             ),
             child: SingleChildScrollView(
-              child: OptionTileGrid(
-                items: widget.list.items,
-                selected: _selected,
-                onToggle: _toggle,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  OptionTileGrid(
+                    items: widget.list.items,
+                    selected: _selected,
+                    onToggle: _toggle,
+                  ),
+                  if (_needsCustom) ...[
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _raw,
+                      autofocus: true,
+                      onChanged: (_) => setState(() {}),
+                      maxLength: 64,
+                      decoration: InputDecoration(
+                        hintText: '填写具体场景',
+                        filled: true,
+                        fillColor: _EditProfilePageState._bg,
+                        counterText: '',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: _EditProfilePageState._border,
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: _EditProfilePageState._border,
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: _EditProfilePageState._blue,
+                            width: 1.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
           ),
@@ -997,9 +1095,15 @@ class _MultiPickerSheetState extends State<_MultiPickerSheet> {
           SizedBox(
             height: 48,
             child: FilledButton(
-              onPressed: _selected.isEmpty
+              onPressed: !_canSave
                   ? null
-                  : () => Navigator.pop(context, _selected),
+                  : () => Navigator.pop(
+                        context,
+                        _MultiPick(
+                          codes: _selected,
+                          raw: _needsCustom ? _raw.text.trim() : null,
+                        ),
+                      ),
               style: FilledButton.styleFrom(
                 backgroundColor: _EditProfilePageState._blue,
                 shape: RoundedRectangleBorder(
@@ -1042,17 +1146,24 @@ class _JobPickerSheet extends StatefulWidget {
 class _JobPickerSheetState extends State<_JobPickerSheet> {
   String? _selected;
   late final TextEditingController _raw;
+  final _scroll = ScrollController();
+  final _rawFocus = FocusNode();
 
   @override
   void initState() {
     super.initState();
     _selected = widget.initialCode;
     _raw = TextEditingController(text: widget.initialRaw ?? '');
+    if (_needsCustom) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _revealCustomField());
+    }
   }
 
   @override
   void dispose() {
     _raw.dispose();
+    _scroll.dispose();
+    _rawFocus.dispose();
     super.dispose();
   }
 
@@ -1071,6 +1182,20 @@ class _JobPickerSheetState extends State<_JobPickerSheet> {
     if (_selected == null) return false;
     if (_needsCustom && _raw.text.trim().isEmpty) return false;
     return true;
+  }
+
+  void _revealCustomField() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_needsCustom) return;
+      if (_scroll.hasClients) {
+        _scroll.animateTo(
+          _scroll.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeOut,
+        );
+      }
+      _rawFocus.requestFocus();
+    });
   }
 
   @override
@@ -1105,6 +1230,7 @@ class _JobPickerSheetState extends State<_JobPickerSheet> {
               maxHeight: MediaQuery.sizeOf(context).height * 0.45,
             ),
             child: SingleChildScrollView(
+              controller: _scroll,
               child: Column(
                 children: [
                   OptionTileGrid(
@@ -1115,14 +1241,19 @@ class _JobPickerSheetState extends State<_JobPickerSheet> {
                     onToggle: (item) {
                       setState(() {
                         _selected = item.code;
-                        if (!item.allowCustom) _raw.clear();
+                        if (!item.allowCustom) {
+                          _raw.clear();
+                          _rawFocus.unfocus();
+                        }
                       });
+                      if (item.allowCustom) _revealCustomField();
                     },
                   ),
                   if (_needsCustom) ...[
                     const SizedBox(height: 12),
                     TextField(
                       controller: _raw,
+                      focusNode: _rawFocus,
                       onChanged: (_) => setState(() {}),
                       decoration: InputDecoration(
                         hintText: '填写具体岗位',
@@ -1138,6 +1269,13 @@ class _JobPickerSheetState extends State<_JobPickerSheet> {
                           borderRadius: BorderRadius.circular(12),
                           borderSide: const BorderSide(
                             color: _EditProfilePageState._border,
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: _EditProfilePageState._blue,
+                            width: 1.5,
                           ),
                         ),
                       ),

@@ -4,8 +4,14 @@ const { cleanLemma } = require('./lessonTokenize');
 /**
  * 从 bank_words 按 ord 环形抽取目标词。
  * 仅取已有 LLM 详解（word_gloss：gloss + sense + example_en）的词。
+ * @param {string[]} [excludeLemmas] 已在往日课出现过的词，优先跳过
  */
-async function pickTargetLemmas(bankCode, cursorOrd = 0, count = 12) {
+async function pickTargetLemmas(
+  bankCode,
+  cursorOrd = 0,
+  count = 12,
+  { excludeLemmas = [] } = {},
+) {
   const code = bankCode || 'business';
   const [rows] = await pool.query(
     `SELECT b.lemma
@@ -21,7 +27,7 @@ async function pickTargetLemmas(bankCode, cursorOrd = 0, count = 12) {
   if (!rows.length) {
     // 本库无详解词时再试 business
     if (code !== 'business') {
-      return pickTargetLemmas('business', cursorOrd, count);
+      return pickTargetLemmas('business', cursorOrd, count, { excludeLemmas });
     }
     // 区分：词库空 vs 详解未灌
     const [all] = await pool.query(
@@ -43,7 +49,15 @@ async function pickTargetLemmas(bankCode, cursorOrd = 0, count = 12) {
     err.code = 'WORD_GLOSS_EMPTY';
     throw err;
   }
-  const lemmas = rows.map((r) => r.lemma).filter(Boolean);
+  const exclude = new Set(
+    (excludeLemmas || []).map((l) => cleanLemma(l)).filter(Boolean),
+  );
+  const allLemmas = rows.map((r) => r.lemma).filter(Boolean);
+  // 优先从未用过的词里抽；不够再回退全库环形
+  const fresh = exclude.size
+    ? allLemmas.filter((l) => !exclude.has(cleanLemma(l)))
+    : allLemmas;
+  const lemmas = fresh.length >= Math.max(1, count) ? fresh : allLemmas;
   const n = Math.min(Math.max(1, count), lemmas.length);
   const start = ((cursorOrd % lemmas.length) + lemmas.length) % lemmas.length;
   const out = [];

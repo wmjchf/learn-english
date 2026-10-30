@@ -53,6 +53,7 @@ function buildPrompt({
   reviewLemmas,
   dayIndex,
   repairHint,
+  avoidThemes = [],
 }) {
   const sceneLine = scenes.length ? scenes.join('、') : '通用职场';
   const interestLine = interests.length ? interests.join('、') : '无';
@@ -61,15 +62,20 @@ function buildPrompt({
       ? `\n复习词（自然复现1次即可，勿做成目标词/回填）：${reviewLemmas.join(', ')}`
       : '';
   const repairLine = repairHint ? `\n上次未通过：${repairHint}。请修正。` : '';
+  const avoidLine =
+    avoidThemes?.length > 0
+      ? `\n禁止复用这些已有主题（事件/情节也要换新）：${avoidThemes.join('、')}`
+      : '';
   const targets = (targetLemmas || []).join(', ');
   return `写 Day ${dayIndex} 日课 JSON（紧凑，勿解释）。
 
 画像：${level}；${jobLabel}；场景 ${sceneLine}；兴趣 ${interestLine}；${bankTitle}
-目标词（必须全部出现在短文 enPlain 或对话 turns 中，每词1-2次，勿堆砌列表）：${targets}${reviewLine}${repairLine}
+目标词（必须全部出现在短文 enPlain 或对话 turns 中，每词1-2次，勿堆砌列表）：${targets}${reviewLine}${avoidLine}${repairLine}
 
 硬性要求：
 - 短文+对话合计须覆盖全部目标词（覆盖率≥70%，尽量100%）
 - 先列好要用到的目标词再写故事，再写 theme/title
+- theme 与故事必须是新事件，不得与近期日课雷同
 
 字段：
 theme(中文标题 4-10 字：必须概括本篇短文的具体事件/话题，内容不同则 theme 必须不同；禁止「今日职场」「商务英语」「职场沟通」等空泛词),
@@ -255,7 +261,7 @@ function ensureTargetCoverage(lesson) {
   return coverageScore(corpusOf(), targets);
 }
 
-function validateLesson(lesson) {
+function validateLesson(lesson, { avoidThemes = [] } = {}) {
   const errors = [];
   if (!lesson.article?.enPlain || lesson.article.enPlain.split(/\s+/).length < 25) {
     errors.push('短文过短');
@@ -268,6 +274,14 @@ function validateLesson(lesson) {
   }
   if (!lesson.cloze || lesson.cloze.length < 8) {
     errors.push(`回填不足 8 题（现 ${lesson.cloze?.length || 0}）`);
+  }
+
+  const theme = asString(lesson.theme);
+  const avoidSet = new Set(
+    (avoidThemes || []).map((t) => asString(t)).filter(Boolean),
+  );
+  if (theme && avoidSet.has(theme)) {
+    errors.push(`主题与近期日课重复: ${theme}`);
   }
 
   const targetSet = new Set(lesson.targetLemmas.map(cleanLemma));
@@ -315,7 +329,9 @@ async function generateOnce(ctx) {
     dayIndex: ctx.dayIndex,
   });
   ensureTargetCoverage(lesson);
-  const check = validateLesson(lesson);
+  const check = validateLesson(lesson, {
+    avoidThemes: ctx.avoidThemes || [],
+  });
   return {
     lesson,
     check,
@@ -325,12 +341,52 @@ async function generateOnce(ctx) {
   };
 }
 
+async function recentThemesForUser(userId, limit = 12) {
+  const { pool } = require('../db');
+  const [rows] = await pool.query(
+    `SELECT theme FROM lessons
+     WHERE user_id = :userId AND theme IS NOT NULL AND theme <> ''
+     ORDER BY id DESC LIMIT ${Math.max(1, Math.min(30, Number(limit) || 12))}`,
+    { userId },
+  );
+  return [...new Set(rows.map((r) => asString(r.theme)).filter(Boolean))];
+}
+
+/** 用户已有日课里出现过的目标词（生成新篇时避开，避免天天同一批词）。 */
+async function usedTargetLemmas(userId, { exceptLessonId = null } = {}) {
+  const { pool } = require('../db');
+  const [rows] = await pool.query(
+    `SELECT id, content_json FROM lessons WHERE user_id = :userId`,
+    { userId },
+  );
+  const used = [];
+  for (const row of rows) {
+    if (exceptLessonId && Number(row.id) === Number(exceptLessonId)) continue;
+    let content = row.content_json;
+    if (typeof content === 'string') {
+      try {
+        content = JSON.parse(content);
+      } catch {
+        content = {};
+      }
+    }
+    const targets = content?.targetLemmas;
+    if (Array.isArray(targets)) {
+      for (const t of targets) {
+        const l = cleanLemma(t);
+        if (l) used.push(l);
+      }
+    }
+  }
+  return [...new Set(used)];
+}
+
 /**
  * 按画像 + 词库生成日课包；失败重试后抛错（由调用方降级种子）。
  */
 async function generateLessonForUser(
   userId,
-  { dayIndex = 1, lemmaOffset = 0, targetCount = 12 } = {},
+  { dayIndex = 1, lemmaOffset = 0, targetCount = 12, exceptLessonId = null } = {},
 ) {
   if (!config.llm.apiKey) {
     const err = new Error('未配置 LLM');
@@ -353,17 +409,20 @@ async function generateLessonForUser(
     8,
     Math.min(12, Number(targetCount) || 10) - reviewLemmas.length,
   );
+  const usedLemmas = await usedTargetLemmas(userId, { exceptLessonId });
   const cursorOrd = (plan?.cursorOrd || 0) + lemmaOffset;
   const picked = await bankWordService.pickTargetLemmas(
     bankCode,
     cursorOrd,
     newCount,
+    { excludeLemmas: usedLemmas },
   );
   const targetLemmas = picked.filter(
     (l) => !reviewLemmas.includes(cleanLemma(l)),
   );
 
   const { scenes, jobLabel, interests } = await resolveLabels(profile);
+  const avoidThemes = await recentThemesForUser(userId, 12);
 
   const ctx = {
     level,
@@ -374,6 +433,7 @@ async function generateLessonForUser(
     targetLemmas,
     reviewLemmas,
     dayIndex,
+    avoidThemes,
     repairHint: '',
   };
 
