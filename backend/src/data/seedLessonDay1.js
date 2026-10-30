@@ -53,6 +53,7 @@ module.exports = {
   },
   dialog: {
     title: "Something's Broken",
+    zhTitle: '出故障了',
     zhLead:
       'Tom：走廊旁复印机又故障，一直卡纸。Linda：可能搬坏了，有人报修吗？Tom：工位插座好像坏了……琳达安排替换机和新插座。',
     enPlain:
@@ -61,6 +62,7 @@ module.exports = {
       {
         who: 'Tom',
         en: 'The photocopier near the corridor is malfunctioning again.',
+        zh: '走廊旁的【复印机】又【故障】了。',
         enTokens: [
           { surface: 'The', lemma: 'the' },
           { surface: 'photocopier', lemma: 'photocopier', isTarget: true },
@@ -75,6 +77,7 @@ module.exports = {
       {
         who: 'Linda',
         en: 'Has anyone called maintenance?',
+        zh: '有人叫【维修】了吗？',
         enTokens: [
           { surface: 'Has', lemma: 'have' },
           { surface: 'anyone', lemma: 'anyone' },
@@ -86,6 +89,7 @@ module.exports = {
       {
         who: 'Tom',
         en: 'My workstation has no power — the outlet is dead.',
+        zh: '我的【工位】没电了——【插座】坏了。',
         enTokens: [
           { surface: 'My', lemma: 'my' },
           { surface: 'workstation', lemma: 'workstation', isTarget: true },
@@ -102,6 +106,7 @@ module.exports = {
       {
         who: 'Linda',
         en: "I'll request a replacement.",
+        zh: '我去申请一台【替换机】。',
         enTokens: [
           { surface: "I'll", lemma: 'will' },
           { surface: 'request', lemma: 'request' },

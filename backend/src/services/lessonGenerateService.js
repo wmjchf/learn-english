@@ -69,7 +69,7 @@ theme(中文标题 4-10 字：必须概括本篇短文的具体事件/话题，�
 title(英文短标题，同样要具体、贴合本篇内容),
 scene:{roleBackground(中文1-2句),tasks[3]},
 article:{title(可贴合短文的英文题),zhTitle(title的中文译名，4-12字，具体),zhLead(中文≤40字，点出本篇具体事),enPlain(英文55-80词，自然写入目标词),zhPlain(enPlain的完整中文翻译；目标词对应的中文必须用【】包住，如【搬迁】；勿翻译成词表)},
-dialog:{zhLead,turns:[{who,en}] 恰好3轮，对话里也可写入剩余目标词},
+dialog:{zhLead(中文≤40字导读),zhTitle(对话英文题的中文译名),turns:[{who,en,zh}] 恰好3轮；zh为该轮完整中译，目标词对应中文用【】包住；对话里也可写入剩余目标词},
 cloze:[{sentence含________,hintZh,answer,before,after}] 恰好8题；answer∈目标词且互不重复
 
 难度贴合 ${level}；职场自然；禁止只列单词；先想清本篇具体故事再写 theme/title。`;
@@ -148,6 +148,7 @@ function normalizeLesson(raw, { targetLemmas, reviewLemmas = [], level, dayIndex
     return {
       who: asString(t.who, 'A'),
       en,
+      zh: asString(t.zh),
       enTokens: tokenizeEnglish(en, targetLemmas, reviewLemmas),
     };
   }).filter((t) => t.en);
@@ -155,10 +156,13 @@ function normalizeLesson(raw, { targetLemmas, reviewLemmas = [], level, dayIndex
   const dialogPlain =
     asString(raw.dialog?.enPlain || raw.dialog?.en_plain) ||
     turns.map((t) => `${t.who}: ${t.en}`).join(' ');
+  const dialogZhLead = asString(raw.dialog?.zhLead || raw.dialog?.zh_lead);
+  let dialogZhTitle = asString(raw.dialog?.zhTitle || raw.dialog?.zh_title);
 
   const dialog = {
     title: asString(raw.dialog?.title, "Let's Talk"),
-    zhLead: asString(raw.dialog?.zhLead || raw.dialog?.zh_lead),
+    zhTitle: dialogZhTitle,
+    zhLead: dialogZhLead,
     enPlain: dialogPlain,
     turns,
   };

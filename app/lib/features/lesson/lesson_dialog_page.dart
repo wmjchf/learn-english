@@ -8,6 +8,7 @@ import 'package:app_starter/features/lesson/word_repository.dart';
 import 'package:app_starter/features/lesson/widgets/lesson_listen_bar.dart';
 import 'package:app_starter/features/lesson/widgets/token_text.dart';
 import 'package:app_starter/features/lesson/widgets/word_sheet.dart';
+import 'package:app_starter/features/lesson/widgets/zh_marked_text.dart';
 
 /// 日课对话：对齐 Figma Phone/日课对话。
 class LessonDialogPage extends StatefulWidget {
@@ -219,7 +220,7 @@ class _LessonDialogPageState extends State<LessonDialogPage> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          '对话：${dialog.title}',
+                          '对话：${dialog.titleDisplay()}',
                           style: const TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
@@ -238,62 +239,6 @@ class _LessonDialogPageState extends State<LessonDialogPage> {
                       vertical: 10,
                     ),
                     decoration: BoxDecoration(
-                      color: _zhBg,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: _cardBorder),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            const Expanded(
-                              child: Text(
-                                '中文导读（先读）',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: _blue,
-                                  height: 15 / 11,
-                                ),
-                              ),
-                            ),
-                            GestureDetector(
-                              onTap: () =>
-                                  setState(() => _zhExpanded = !_zhExpanded),
-                              child: Text(
-                                _zhExpanded ? '收起' : '展开',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: _muted,
-                                  height: 15 / 11,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (_zhExpanded) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            dialog.zhLead,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: Color(0xFF555555),
-                              height: 15 / 11,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
                       color: _dialogBg,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: _dialogBorder),
@@ -302,7 +247,7 @@ class _LessonDialogPageState extends State<LessonDialogPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         for (var i = 0; i < dialog.turns.length; i++) ...[
-                          if (i > 0) const SizedBox(height: 6),
+                          if (i > 0) const SizedBox(height: 12),
                           TokenText(
                             tokens: dialog.turns[i].enTokens,
                             onTap: _onToken,
@@ -319,10 +264,87 @@ class _LessonDialogPageState extends State<LessonDialogPage> {
                               ),
                             ),
                           ),
+                          if (dialog.turns[i].zh.trim().isNotEmpty) ...[
+                            const SizedBox(height: 6),
+                            Padding(
+                              padding: const EdgeInsets.only(left: 2),
+                              child: ZhMarkedText(
+                                text: dialog.turns[i].zh,
+                                fontSize: 13,
+                                extraHighlights: glossHighlightPhrases(
+                                  lesson.content.targetLemmas.map(
+                                    (l) =>
+                                        lesson.content.defFor(l)?.gloss ?? '',
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
                       ],
                     ),
                   ),
+                  // 旧课无逐轮译文时，退回整段导读
+                  if (!dialog.hasTurnZh && dialog.zhLead.trim().isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _zhBg,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: _cardBorder),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Expanded(
+                                child: Text(
+                                  '中文翻译',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: _blue,
+                                    height: 15 / 11,
+                                  ),
+                                ),
+                              ),
+                              GestureDetector(
+                                onTap: () => setState(
+                                  () => _zhExpanded = !_zhExpanded,
+                                ),
+                                child: Text(
+                                  _zhExpanded ? '收起' : '展开',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: _muted,
+                                    height: 15 / 11,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (_zhExpanded) ...[
+                            const SizedBox(height: 6),
+                            ZhMarkedText(
+                              text: dialog.zhLead,
+                              extraHighlights: glossHighlightPhrases(
+                                lesson.content.targetLemmas.map(
+                                  (l) =>
+                                      lesson.content.defFor(l)?.gloss ?? '',
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

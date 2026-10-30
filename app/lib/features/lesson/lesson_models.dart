@@ -149,11 +149,14 @@ class DialogTurn {
   const DialogTurn({
     required this.who,
     required this.en,
+    required this.zh,
     required this.enTokens,
   });
 
   final String who;
   final String en;
+  /// 该轮中译；目标词对应中文可用 【】 标出。
+  final String zh;
   final List<LessonToken> enTokens;
 
   factory DialogTurn.fromJson(Map<String, dynamic> json) {
@@ -161,6 +164,7 @@ class DialogTurn {
     return DialogTurn(
       who: json['who'] as String? ?? '',
       en: json['en'] as String? ?? '',
+      zh: json['zh'] as String? ?? '',
       enTokens: raw is List
           ? raw
               .whereType<Map>()
@@ -174,20 +178,34 @@ class DialogTurn {
 class LessonDialog {
   const LessonDialog({
     required this.title,
+    required this.zhTitle,
     required this.zhLead,
     required this.enPlain,
     required this.turns,
   });
 
   final String title;
+  final String zhTitle;
   final String zhLead;
   final String enPlain;
   final List<DialogTurn> turns;
+
+  bool get hasTurnZh => turns.any((t) => t.zh.trim().isNotEmpty);
+
+  String titleDisplay({String fallbackZh = ''}) {
+    final en = title.trim();
+    final zh = zhTitle.trim().isNotEmpty ? zhTitle.trim() : fallbackZh.trim();
+    if (en.isEmpty) return zh;
+    if (zh.isEmpty) return en;
+    return '$en（$zh）';
+  }
 
   factory LessonDialog.fromJson(Map<String, dynamic>? json) {
     final raw = json?['turns'];
     return LessonDialog(
       title: json?['title'] as String? ?? '',
+      zhTitle:
+          json?['zhTitle'] as String? ?? json?['zh_title'] as String? ?? '',
       zhLead: json?['zhLead'] as String? ?? json?['zh_lead'] as String? ?? '',
       enPlain: json?['enPlain'] as String? ?? json?['en_plain'] as String? ?? '',
       turns: raw is List
