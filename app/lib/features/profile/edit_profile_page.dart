@@ -972,17 +972,24 @@ class _MultiPickerSheet extends StatefulWidget {
 class _MultiPickerSheetState extends State<_MultiPickerSheet> {
   late Set<String> _selected;
   late final TextEditingController _raw;
+  final _scroll = ScrollController();
+  final _rawFocus = FocusNode();
 
   @override
   void initState() {
     super.initState();
     _selected = {...widget.initial};
     _raw = TextEditingController(text: widget.initialRaw ?? '');
+    if (_needsCustom) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _revealCustomField());
+    }
   }
 
   @override
   void dispose() {
     _raw.dispose();
+    _scroll.dispose();
+    _rawFocus.dispose();
     super.dispose();
   }
 
@@ -999,24 +1006,51 @@ class _MultiPickerSheetState extends State<_MultiPickerSheet> {
     return true;
   }
 
+  void _revealCustomField() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_needsCustom) return;
+      if (_scroll.hasClients) {
+        _scroll.animateTo(
+          _scroll.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeOut,
+        );
+      }
+      _rawFocus.requestFocus();
+    });
+  }
+
   void _toggle(CatalogItem item) {
     final max = widget.list.maxSelect;
+    var openedCustom = false;
     setState(() {
       if (_selected.contains(item.code)) {
         _selected.remove(item.code);
-        if (item.allowCustom) _raw.clear();
+        if (item.allowCustom) {
+          _raw.clear();
+          _rawFocus.unfocus();
+        }
       } else if (_selected.length < max) {
         _selected.add(item.code);
+        if (item.allowCustom) openedCustom = true;
       } else {
         AppToast.show(context, '最多选 $max 个');
       }
     });
+    if (openedCustom) _revealCustomField();
   }
 
   @override
   Widget build(BuildContext context) {
     final bottom = MediaQuery.paddingOf(context).bottom;
     final inset = MediaQuery.viewInsetsOf(context).bottom;
+    final screenH = MediaQuery.sizeOf(context).height;
+    // 标题+说明+保存+内边距约占 160；键盘抬起时列表必须按剩余高度收缩
+    const chrome = 160.0;
+    final listMaxH = (screenH - inset - bottom - chrome).clamp(
+      120.0,
+      screenH * 0.5,
+    );
     return Padding(
       padding: EdgeInsets.fromLTRB(20, 16, 20, 16 + bottom + inset),
       child: Column(
@@ -1041,10 +1075,9 @@ class _MultiPickerSheetState extends State<_MultiPickerSheet> {
           ),
           const SizedBox(height: 16),
           ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.sizeOf(context).height * 0.5,
-            ),
+            constraints: BoxConstraints(maxHeight: listMaxH),
             child: SingleChildScrollView(
+              controller: _scroll,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -1057,7 +1090,7 @@ class _MultiPickerSheetState extends State<_MultiPickerSheet> {
                     const SizedBox(height: 12),
                     TextField(
                       controller: _raw,
-                      autofocus: true,
+                      focusNode: _rawFocus,
                       onChanged: (_) => setState(() {}),
                       maxLength: 64,
                       decoration: InputDecoration(
@@ -1202,6 +1235,12 @@ class _JobPickerSheetState extends State<_JobPickerSheet> {
   Widget build(BuildContext context) {
     final bottom = MediaQuery.paddingOf(context).bottom;
     final inset = MediaQuery.viewInsetsOf(context).bottom;
+    final screenH = MediaQuery.sizeOf(context).height;
+    const chrome = 160.0;
+    final listMaxH = (screenH - inset - bottom - chrome).clamp(
+      120.0,
+      screenH * 0.45,
+    );
     return Padding(
       padding: EdgeInsets.fromLTRB(20, 16, 20, 16 + bottom + inset),
       child: Column(
@@ -1226,9 +1265,7 @@ class _JobPickerSheetState extends State<_JobPickerSheet> {
           ),
           const SizedBox(height: 16),
           ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.sizeOf(context).height * 0.45,
-            ),
+            constraints: BoxConstraints(maxHeight: listMaxH),
             child: SingleChildScrollView(
               controller: _scroll,
               child: Column(
