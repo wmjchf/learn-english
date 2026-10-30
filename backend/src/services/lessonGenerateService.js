@@ -76,10 +76,10 @@ theme(中文标题 4-10 字：必须概括本篇短文的具体事件/话题，�
 title(英文短标题，同样要具体、贴合本篇内容),
 scene:{roleBackground(中文1-2句),tasks[3]},
 article:{title(可贴合短文的英文题),zhTitle(title的中文译名，4-12字，具体),zhLead(中文≤40字，点出本篇具体事),enPlain(英文55-80词，自然写入目标词),zhPlain(enPlain的完整中文翻译；目标词对应的中文必须用【】包住，如【搬迁】；勿翻译成词表)},
-dialog:{zhLead(中文≤40字导读),zhTitle(对话英文题的中文译名),turns:[{who,en,zh}] 恰好3轮；zh为该轮完整中译，目标词对应中文用【】包住；对话里也可写入剩余目标词},
+dialog:{zhTitle(对话英文题的中文译名),zhLead(中文≤30字场景概要，不是台词翻译),turns:[{who,en,zh}] 恰好3轮；zh必须是对本轮 en 的忠实中文翻译（勿写成剧情摘要）；目标词对应中文用【】包住；对话里也可写入剩余目标词},
 cloze:[{sentence含________,hintZh,answer,before,after}] 恰好8题；answer∈目标词且互不重复
 
-难度贴合 ${level}；职场自然；禁止只列单词；先想清本篇具体故事再写 theme/title。`;
+难度贴合 ${level}；职场自然；禁止只列单词；先想清本篇具体故事再写 theme/title；dialog.turns[].zh 严禁用导读代替逐句翻译。`;
 }
 
 const GENERIC_THEMES = new Set([
@@ -261,6 +261,11 @@ function validateLesson(lesson) {
     errors.push('短文过短');
   }
   if (!lesson.dialog?.turns?.length) errors.push('缺少对话');
+  const dialogTurns = lesson.dialog?.turns || [];
+  const turnsMissingZh = dialogTurns.filter((t) => !asString(t.zh)).length;
+  if (dialogTurns.length && turnsMissingZh > 0) {
+    errors.push(`对话缺逐句中译 ${turnsMissingZh}/${dialogTurns.length} 轮`);
+  }
   if (!lesson.cloze || lesson.cloze.length < 8) {
     errors.push(`回填不足 8 题（现 ${lesson.cloze?.length || 0}）`);
   }

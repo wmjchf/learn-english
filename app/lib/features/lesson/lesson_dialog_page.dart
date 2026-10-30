@@ -43,13 +43,10 @@ class _LessonDialogPageState extends State<LessonDialogPage> {
     if (widget.focusLemma != null && widget.focusLemma!.trim().isNotEmpty)
       widget.focusLemma!.trim().toLowerCase(),
   };
-  bool _zhExpanded = true;
-
   static const _bg = Color(0xFFF5F6F8);
   static const _blue = Color(0xFF1A56DB);
   static const _text = Color(0xFF17202E);
   static const _muted = Color(0xFF8A94A6);
-  static const _zhBg = Color(0xFFF0F3F9);
   static const _cardBorder = Color(0xFFE3E7EE);
   static const _dialogBg = Color(0xFFF2F7FF);
   static const _dialogBorder = Color(0xFFBFDBFE);
@@ -264,6 +261,7 @@ class _LessonDialogPageState extends State<LessonDialogPage> {
                               ),
                             ),
                           ),
+                          // 仅展示该轮英文的对应译文；不用 zhLead 冒充翻译
                           if (dialog.turns[i].zh.trim().isNotEmpty) ...[
                             const SizedBox(height: 6),
                             Padding(
@@ -284,67 +282,6 @@ class _LessonDialogPageState extends State<LessonDialogPage> {
                       ],
                     ),
                   ),
-                  // 旧课无逐轮译文时，退回整段导读
-                  if (!dialog.hasTurnZh && dialog.zhLead.trim().isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _zhBg,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: _cardBorder),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              const Expanded(
-                                child: Text(
-                                  '中文翻译',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                    color: _blue,
-                                    height: 15 / 11,
-                                  ),
-                                ),
-                              ),
-                              GestureDetector(
-                                onTap: () => setState(
-                                  () => _zhExpanded = !_zhExpanded,
-                                ),
-                                child: Text(
-                                  _zhExpanded ? '收起' : '展开',
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    color: _muted,
-                                    height: 15 / 11,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          if (_zhExpanded) ...[
-                            const SizedBox(height: 6),
-                            ZhMarkedText(
-                              text: dialog.zhLead,
-                              extraHighlights: glossHighlightPhrases(
-                                lesson.content.targetLemmas.map(
-                                  (l) =>
-                                      lesson.content.defFor(l)?.gloss ?? '',
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ),
