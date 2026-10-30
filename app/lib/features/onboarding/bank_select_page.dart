@@ -3,10 +3,9 @@ import 'package:app_starter/core/network/api_client.dart';
 import 'package:app_starter/core/ui/app_toast.dart';
 import 'package:app_starter/features/onboarding/bank_models.dart';
 import 'package:app_starter/features/onboarding/bank_repository.dart';
-import 'package:app_starter/features/onboarding/demo_lesson_placeholder_page.dart';
 import 'package:app_starter/features/onboarding/plan_setup_page.dart';
 
-/// ⑦ 选词库：扁平列表，与职业无关；可先看 Demo。
+/// ⑦ 选词库：扁平列表，与职业无关。
 class BankSelectPage extends StatefulWidget {
   const BankSelectPage({super.key});
 
@@ -24,7 +23,6 @@ class _BankSelectPageState extends State<BankSelectPage> {
   static const _title = Color(0xFF17202E);
   static const _muted = Color(0xFF8A94A6);
   static const _border = Color(0xFFE2E8F0);
-  static const _demoBorder = Color(0xFFCBD5E1);
 
   final _repo = BankRepository();
 
@@ -93,14 +91,6 @@ class _BankSelectPageState extends State<BankSelectPage> {
     }
   }
 
-  void _onDemo() {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => const DemoLessonPlaceholderPage(),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -147,25 +137,6 @@ class _BankSelectPageState extends State<BankSelectPage> {
               ),
               const SizedBox(height: 16),
               Expanded(child: _buildList()),
-              const SizedBox(height: 12),
-              OutlinedButton(
-                onPressed: _submitting ? null : _onDemo,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: _text,
-                  side: const BorderSide(color: _demoBorder),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: const Text(
-                  '先看一篇 Demo',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
             ],
           ),
         ),

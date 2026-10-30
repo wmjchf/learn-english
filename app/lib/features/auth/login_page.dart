@@ -159,8 +159,13 @@ class _LoginPageState extends State<LoginPage> {
               ),
               const SizedBox(height: 8),
               const Text(
-                '手机号验证码登录',
+                AppBrand.tagline,
                 style: TextStyle(fontSize: 15, color: _muted),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                '手机号验证码登录',
+                style: TextStyle(fontSize: 14, color: _muted),
               ),
               const SizedBox(height: 36),
               TextField(

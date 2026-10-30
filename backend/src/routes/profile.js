@@ -21,6 +21,7 @@ router.patch('/', async (req, res, next) => {
     const profile = await profileService.patchProfile(req.auth.userId, {
       interests: body.interests,
       scenes: body.scenes,
+      sceneRaw: body.sceneRaw ?? body.scene_raw,
       jobCode: body.jobCode ?? body.job_code,
       jobRaw: body.jobRaw ?? body.job_raw,
       dailyMinutes: body.dailyMinutes ?? body.daily_minutes,

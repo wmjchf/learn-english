@@ -26,7 +26,14 @@ async function labelsFor(kind, codes) {
 }
 
 async function resolveLabels(profile) {
-  const scenes = await labelsFor('scene', profile.scenes);
+  let scenes = await labelsFor('scene', profile.scenes);
+  // 场景「自填」用用户原文替换目录里的「自填」标签
+  if (profile.sceneRaw && profile.scenes?.includes('other')) {
+    scenes = scenes.map((s) => (s === '自填' ? profile.sceneRaw : s));
+    if (!scenes.includes(profile.sceneRaw)) {
+      scenes = [...scenes.filter((s) => s !== 'other'), profile.sceneRaw];
+    }
+  }
   const interests = await labelsFor('interest', profile.interests);
   let jobLabel = profile.jobRaw || '职场人士';
   if (profile.jobCode) {

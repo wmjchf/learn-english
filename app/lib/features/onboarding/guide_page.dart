@@ -48,9 +48,20 @@ class GuidePage extends StatelessWidget {
                         height: 1.4,
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
                     const Text(
-                      '带着你要学的词，生成适配水平、职业与场景的文章，在阅读里学会。',
+                      AppBrand.pitch,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: _muted,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      AppBrand.description,
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 14,

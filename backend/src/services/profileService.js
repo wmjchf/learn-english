@@ -33,6 +33,7 @@ function mapProfile(row) {
     generationLevel: row.generation_level,
     jobCode: row.job_code,
     jobRaw: row.job_raw,
+    sceneRaw: row.scene_raw,
     scenes: parseJsonArray(row.scenes),
     interests: parseJsonArray(row.interests),
     dailyMinutes: row.daily_minutes,
@@ -104,6 +105,15 @@ async function patchProfile(userId, patch = {}) {
     const scenes = await assertCodes('scene', patch.scenes);
     fields.push('scenes = CAST(:scenes AS JSON)');
     params.scenes = JSON.stringify(scenes);
+    if (patch.sceneRaw !== undefined) {
+      fields.push('scene_raw = :sceneRaw');
+      params.sceneRaw = patch.sceneRaw ? String(patch.sceneRaw).slice(0, 128) : null;
+    } else if (!scenes.includes('other')) {
+      fields.push('scene_raw = NULL');
+    }
+  } else if (patch.sceneRaw !== undefined) {
+    fields.push('scene_raw = :sceneRaw');
+    params.sceneRaw = patch.sceneRaw ? String(patch.sceneRaw).slice(0, 128) : null;
   }
   if (patch.jobCode !== undefined) {
     const [jobCode] = await assertCodes('job', [patch.jobCode]);

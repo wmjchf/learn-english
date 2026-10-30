@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:app_starter/core/config/app_brand.dart';
 
 /// 首篇 / 日课生成中的全屏状态：步骤条 + 轮播提示，避免空白转圈。
 class LessonGeneratingView extends StatefulWidget {
@@ -84,7 +85,7 @@ class _LessonGeneratingViewState extends State<LessonGeneratingView>
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Text(
-                '词成文',
+                AppBrand.name,
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,

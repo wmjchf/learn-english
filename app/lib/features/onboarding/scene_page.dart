@@ -19,6 +19,7 @@ class ScenePage extends StatefulWidget {
 class _ScenePageState extends State<ScenePage> {
   final _catalog = CatalogRepository();
   final _profile = ProfileRepository();
+  final _customCtrl = TextEditingController();
 
   CatalogList? _list;
   final Set<String> _selected = {};
@@ -30,6 +31,26 @@ class _ScenePageState extends State<ScenePage> {
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _customCtrl.dispose();
+    super.dispose();
+  }
+
+  bool get _needsCustom {
+    final list = _list;
+    if (list == null) return false;
+    return _selected.any(
+      (c) => list.items.any((i) => i.code == c && i.allowCustom),
+    );
+  }
+
+  bool get _canSubmit {
+    if (_selected.isEmpty || _loading || _error != null) return false;
+    if (_needsCustom && _customCtrl.text.trim().isEmpty) return false;
+    return true;
   }
 
   Future<void> _load() async {
@@ -48,6 +69,9 @@ class _ScenePageState extends State<ScenePage> {
           ..addAll(profile.scenes.where(
             (c) => list.items.any((i) => i.code == c),
           ));
+        if (profile.sceneRaw != null) {
+          _customCtrl.text = profile.sceneRaw!;
+        }
         _loading = false;
       });
     } on ApiException catch (e) {
@@ -70,6 +94,7 @@ class _ScenePageState extends State<ScenePage> {
     setState(() {
       if (_selected.contains(item.code)) {
         _selected.remove(item.code);
+        if (item.allowCustom) _customCtrl.clear();
       } else if (_selected.length < max) {
         _selected.add(item.code);
       } else {
@@ -79,11 +104,12 @@ class _ScenePageState extends State<ScenePage> {
   }
 
   Future<void> _submit() async {
-    if (_selected.isEmpty || _submitting) return;
+    if (!_canSubmit || _submitting) return;
     setState(() => _submitting = true);
     try {
       await _profile.patch({
         'scenes': _selected.toList(),
+        'sceneRaw': _needsCustom ? _customCtrl.text.trim() : null,
         'onboardingStep': 'job',
       });
       if (!mounted) return;
@@ -132,6 +158,36 @@ class _ScenePageState extends State<ScenePage> {
               style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)),
             ),
           ],
+          if (_needsCustom) ...[
+            const SizedBox(height: 20),
+            TextField(
+              controller: _customCtrl,
+              onChanged: (_) => setState(() {}),
+              maxLength: 64,
+              decoration: InputDecoration(
+                labelText: '你的具体场景',
+                hintText: '例如：海关报关、病房交接',
+                filled: true,
+                fillColor: Colors.white,
+                counterText: '',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(
+                    color: Color(0xFF2563EB),
+                    width: 1.5,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       );
     }
@@ -141,7 +197,7 @@ class _ScenePageState extends State<ScenePage> {
       subtitle: '最多 $max 个。文章场景从这里取。',
       body: body,
       ctaLabel: '继续',
-      ctaEnabled: _selected.isNotEmpty && !_loading && _error == null,
+      ctaEnabled: _canSubmit,
       submitting: _submitting,
       onCta: _submit,
       onBack: () => onboardingBack(context, fallback: sceneFallback()),

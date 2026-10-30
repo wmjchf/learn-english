@@ -5,6 +5,7 @@ class UserProfile {
     this.generationLevel,
     this.jobCode,
     this.jobRaw,
+    this.sceneRaw,
     this.scenes = const [],
     this.interests = const [],
     this.dailyMinutes,
@@ -18,6 +19,7 @@ class UserProfile {
   final String? generationLevel;
   final String? jobCode;
   final String? jobRaw;
+  final String? sceneRaw;
   final List<String> scenes;
   final List<String> interests;
   final int? dailyMinutes;
@@ -35,6 +37,7 @@ class UserProfile {
       generationLevel: map['generationLevel'] as String?,
       jobCode: map['jobCode'] as String?,
       jobRaw: map['jobRaw'] as String?,
+      sceneRaw: map['sceneRaw'] as String?,
       scenes: _stringList(map['scenes']),
       interests: _stringList(map['interests']),
       dailyMinutes: (map['dailyMinutes'] as num?)?.toInt(),

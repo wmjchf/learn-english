@@ -50,7 +50,7 @@ async function resolveBankForUser(userId) {
   return { profile, plan, bank };
 }
 
-async function sceneLabels(codes) {
+async function sceneLabels(codes, sceneRaw) {
   const list = [...new Set((codes || []).map(String))];
   if (!list.length) return [];
   const params = {};
@@ -63,7 +63,11 @@ async function sceneLabels(codes) {
     params,
   );
   const map = Object.fromEntries(rows.map((r) => [r.code, r.label]));
-  return list.map((c) => map[c] || c);
+  const raw = sceneRaw ? String(sceneRaw).trim() : '';
+  return list.map((c) => {
+    if (c === 'other' && raw) return raw;
+    return map[c] || c;
+  });
 }
 
 /**
@@ -185,7 +189,7 @@ async function getPlanContext(userId) {
   const minutes =
     plan?.dailyMinutes || profile.dailyMinutes || DEFAULT_MINUTES;
   const estimate = computeEstimate({ remaining, minutes });
-  const scenes = await sceneLabels(profile.scenes);
+  const scenes = await sceneLabels(profile.scenes, profile.sceneRaw);
 
   return {
     bank,
@@ -234,7 +238,7 @@ async function confirmPlan(userId, { minutes, days } = {}) {
     onboardingStep: 'done',
   });
 
-  const scenes = await sceneLabels(profile.scenes);
+  const scenes = await sceneLabels(profile.scenes, profile.sceneRaw);
 
   return {
     bank,
