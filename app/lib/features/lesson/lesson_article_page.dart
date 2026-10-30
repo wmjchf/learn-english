@@ -276,7 +276,6 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
     final lesson = _lesson!;
     final scene = lesson.content.scene;
     final article = lesson.content.article;
-    final dialog = lesson.content.dialog;
 
     return Column(
       children: [
@@ -481,52 +480,18 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
                   ],
                 ),
               ),
-              const SizedBox(height: 8),
-              Material(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                child: InkWell(
-                  onTap: _goDialog,
-                  borderRadius: BorderRadius.circular(12),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: _cardBorder),
-                    ),
-                    child: Text(
-                      "💬 下一段：对话 ${dialog.title} ›",
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: _blue,
-                        height: 16 / 12,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
             ],
           ),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-          child: Column(
-            children: [
-              LessonListenBar(
-                tts: _tts,
-                text: article.enPlain,
-                idleLabel: '听一遍短文',
-                accent: _blue,
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
+          child: ListenableBuilder(
+            listenable: _tts,
+            builder: (context, _) {
+              final listening = _tts.isSessionFor(article.enPlain);
+              final enterDialog = SizedBox(
                 height: 43,
+                width: listening ? double.infinity : null,
                 child: OutlinedButton(
                   onPressed: _goDialog,
                   style: OutlinedButton.styleFrom(
@@ -545,8 +510,31 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
                     ),
                   ),
                 ),
-              ),
-            ],
+              );
+              final listen = LessonListenBar(
+                tts: _tts,
+                text: article.enPlain,
+                idleLabel: '听一遍短文',
+                accent: _blue,
+              );
+              // 播放中进度条占满宽；空闲时与「进入对话」横排
+              if (listening) {
+                return Column(
+                  children: [
+                    listen,
+                    const SizedBox(height: 8),
+                    enterDialog,
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: listen),
+                  const SizedBox(width: 8),
+                  Expanded(child: enterDialog),
+                ],
+              );
+            },
           ),
         ),
       ],

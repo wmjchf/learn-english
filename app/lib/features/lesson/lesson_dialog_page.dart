@@ -328,18 +328,13 @@ class _LessonDialogPageState extends State<LessonDialogPage> {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-              child: Column(
-                children: [
-                  LessonListenBar(
-                    tts: _tts,
-                    text: _listenPlain,
-                    idleLabel: '听一遍对话',
-                    accent: _blue,
-                  ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
+              child: ListenableBuilder(
+                listenable: _tts,
+                builder: (context, _) {
+                  final listening = _tts.isSessionFor(_listenPlain);
+                  final next = SizedBox(
                     height: 43,
+                    width: listening ? double.infinity : null,
                     child: OutlinedButton(
                       onPressed: _goCloze,
                       style: OutlinedButton.styleFrom(
@@ -358,8 +353,30 @@ class _LessonDialogPageState extends State<LessonDialogPage> {
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  );
+                  final listen = LessonListenBar(
+                    tts: _tts,
+                    text: _listenPlain,
+                    idleLabel: '听一遍对话',
+                    accent: _blue,
+                  );
+                  if (listening) {
+                    return Column(
+                      children: [
+                        listen,
+                        const SizedBox(height: 8),
+                        next,
+                      ],
+                    );
+                  }
+                  return Row(
+                    children: [
+                      Expanded(child: listen),
+                      const SizedBox(width: 8),
+                      Expanded(child: next),
+                    ],
+                  );
+                },
               ),
             ),
           ],

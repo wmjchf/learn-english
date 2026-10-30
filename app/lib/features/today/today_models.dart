@@ -105,6 +105,7 @@ class TodayPayload {
     required this.lesson,
     required this.review,
     required this.plan,
+    this.lessonPending = false,
   });
 
   final int streakDays;
@@ -114,11 +115,18 @@ class TodayPayload {
   final TodayReview review;
   final TodayPlanMeta plan;
 
+  /// 今日尚无日课，需先触发生成。
+  final bool lessonPending;
+
+  bool get needsGenerate =>
+      lessonPending || lesson.id <= 0 || lesson.status == 'generating';
+
   factory TodayPayload.fromJson(Map<String, dynamic>? json) {
     return TodayPayload(
       streakDays: (json?['streakDays'] as num?)?.toInt() ?? 0,
       tasksDone: (json?['tasksDone'] as num?)?.toInt() ?? 0,
       tasksTotal: (json?['tasksTotal'] as num?)?.toInt() ?? 2,
+      lessonPending: json?['lessonPending'] == true,
       lesson: TodayLessonCard.fromJson(
         json?['lesson'] is Map
             ? Map<String, dynamic>.from(json!['lesson'] as Map)

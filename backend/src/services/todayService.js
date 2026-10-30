@@ -12,12 +12,26 @@ function paceLabel(warning) {
   return '节奏正常';
 }
 
+function todayLocalDate(timezone) {
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone || 'Asia/Shanghai',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date());
+  } catch {
+    return new Date().toISOString().slice(0, 10);
+  }
+}
+
 /**
- * 今日任务页聚合：日课卡、复习占位、连胜占位、计划进度。
+ * 今日任务页聚合：日课卡、复习、连胜、计划进度。
+ * 无今日日课时不阻塞等 LLM，返回 lessonPending，由客户端再调 /api/lessons/today 生成。
  */
 async function getToday(userId) {
   const profile = await profileService.ensureProfile(userId);
-  const lesson = await lessonService.getTodayLesson(userId);
+  const lesson = await lessonService.findTodayLesson(userId);
 
   const plan = await planService.getActivePlan(userId);
   const bankId = plan?.bankId || profile.primaryBankId;
@@ -31,10 +45,20 @@ async function getToday(userId) {
   }
 
   const totalDays = plan?.targetDays || profile.targetDays || 1;
-  const dayIndex = Math.min(
-    Math.max(1, lesson.dayIndex || 1),
-    Math.max(1, totalDays),
-  );
+  let dayIndex = 1;
+  if (lesson) {
+    dayIndex = Math.min(
+      Math.max(1, lesson.dayIndex || 1),
+      Math.max(1, totalDays),
+    );
+  } else {
+    // 预估即将生成的 Day，不写库
+    dayIndex = await lessonService.resolveDayIndex(
+      userId,
+      todayLocalDate(profile.timezone),
+    );
+    dayIndex = Math.min(Math.max(1, dayIndex), Math.max(1, totalDays));
+  }
   const dayLabel = `Day ${dayIndex}`;
 
   let pace = '节奏正常';
@@ -47,12 +71,12 @@ async function getToday(userId) {
     pace = paceLabel(est.warning);
   }
 
-  const content = lesson.content || {};
+  const content = lesson?.content || {};
   const targetCount = Array.isArray(content.targetLemmas)
     ? content.targetLemmas.length
     : 0;
 
-  const lessonDone = lesson.status === 'done';
+  const lessonDone = lesson?.status === 'done';
   const dueCount = await wordLifecycleService.countDue(userId);
   const inLessonReview = Math.min(
     wordLifecycleService.IN_ARTICLE_REVIEW_CAP,
@@ -61,25 +85,41 @@ async function getToday(userId) {
   const streak = await streakService.getStreak(userId);
   const reviewDone = dueCount === 0;
   const tasksDone = (lessonDone ? 1 : 0) + (reviewDone ? 1 : 0);
+  const lessonPending = !lesson;
 
   return {
     streakDays: streak.currentStreak,
     streak,
     tasksDone,
     tasksTotal: 2,
-    lesson: {
-      id: lesson.id,
-      theme: lesson.theme,
-      title: lesson.title,
-      status: lesson.status,
-      source: lesson.source || 'seed',
-      dayIndex,
-      listLabel: dayLabel,
-      sceneHint: dayLabel,
-      targetWordCount: targetCount,
-      estMinutes: Math.max(5, Math.round((targetCount || 12) * 0.7)),
-      ctaLabel: lessonDone ? '再读一遍' : '开始阅读',
-    },
+    lessonPending,
+    lesson: lesson
+      ? {
+          id: lesson.id,
+          theme: lesson.theme,
+          title: lesson.title,
+          status: lesson.status,
+          source: lesson.source || 'seed',
+          dayIndex,
+          listLabel: dayLabel,
+          sceneHint: dayLabel,
+          targetWordCount: targetCount,
+          estMinutes: Math.max(5, Math.round((targetCount || 12) * 0.7)),
+          ctaLabel: lessonDone ? '再读一遍' : '开始阅读',
+        }
+      : {
+          id: 0,
+          theme: '正在生成…',
+          title: '今日短文准备中',
+          status: 'generating',
+          source: 'pending',
+          dayIndex,
+          listLabel: dayLabel,
+          sceneHint: dayLabel,
+          targetWordCount: 0,
+          estMinutes: 8,
+          ctaLabel: '生成中',
+        },
     review: {
       dueCount,
       inLessonCount: inLessonReview,

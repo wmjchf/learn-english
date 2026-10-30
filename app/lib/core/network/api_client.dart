@@ -152,6 +152,17 @@ class ApiClient {
     return _decode(res);
   }
 
+  /// 成文接口常要 20–60s（偶发更久）；其余默认 30s。
+  Duration _timeoutFor(String path) {
+    final p = path.toLowerCase();
+    if (p.contains('/lessons/today') ||
+        p.contains('/lessons/generate') ||
+        p.contains('/regenerate')) {
+      return const Duration(seconds: 240);
+    }
+    return const Duration(seconds: 30);
+  }
+
   Future<http.Response> _send(
     String method,
     String path, {
@@ -164,18 +175,27 @@ class ApiClient {
       if (accessToken != null) 'Authorization': 'Bearer $accessToken',
     };
     final encoded = body == null ? null : jsonEncode(body);
+    final timeout = _timeoutFor(path);
 
+    final Future<http.Response> future;
     switch (method) {
       case 'GET':
-        return _client.get(uri, headers: headers);
+        future = _client.get(uri, headers: headers);
+        break;
       case 'DELETE':
-        return _client.delete(uri, headers: headers);
+        future = _client.delete(uri, headers: headers);
+        break;
       case 'PATCH':
-        return _client.patch(uri, headers: headers, body: encoded);
+        future = _client.patch(uri, headers: headers, body: encoded);
+        break;
       case 'POST':
       default:
-        return _client.post(uri, headers: headers, body: encoded);
+        future = _client.post(uri, headers: headers, body: encoded);
     }
+    return future.timeout(
+      timeout,
+      onTimeout: () => throw ApiException('请求超时，请稍后重试'),
+    );
   }
 
   String? _peekMessage(http.Response res) {

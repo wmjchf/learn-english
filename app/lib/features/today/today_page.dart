@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:app_starter/core/network/api_client.dart';
 import 'package:app_starter/features/lesson/lesson_article_page.dart';
+import 'package:app_starter/features/lesson/lesson_repository.dart';
+import 'package:app_starter/features/lesson/widgets/lesson_generating_view.dart';
 import 'package:app_starter/features/today/today_models.dart';
 import 'package:app_starter/features/today/today_repository.dart';
 import 'package:app_starter/features/vocab/review_page.dart';
@@ -15,8 +17,10 @@ class TodayPage extends StatefulWidget {
 
 class _TodayPageState extends State<TodayPage> {
   final _repo = TodayRepository();
+  final _lessons = LessonRepository();
   TodayPayload? _data;
   bool _loading = true;
+  bool _ensuring = false;
   String? _error;
 
   static const _bg = Color(0xFFF8FAFC);
@@ -34,7 +38,7 @@ class _TodayPageState extends State<TodayPage> {
   }
 
   Future<void> _load({bool silent = false}) async {
-    final keepContent = silent && _data != null;
+    final keepContent = silent && _data != null && !_data!.needsGenerate;
     setState(() {
       if (!keepContent) _loading = true;
       _error = null;
@@ -46,14 +50,49 @@ class _TodayPageState extends State<TodayPage> {
         _data = data;
         _loading = false;
       });
+      if (data.needsGenerate) {
+        await _ensureTodayLesson();
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _loading = false;
+        _ensuring = false;
         // 静默刷新失败时保留旧数据，避免整页闪成错误态
         if (!keepContent) {
           _error = e is ApiException ? e.message : '加载失败';
         }
+      });
+    }
+  }
+
+  /// 今日无课时再调成文接口；今日页本身不再被 LLM 拖死。
+  Future<void> _ensureTodayLesson() async {
+    if (_ensuring) return;
+    setState(() {
+      _ensuring = true;
+      _error = null;
+    });
+    try {
+      await _lessons.today();
+      if (!mounted) return;
+      final data = await _repo.fetch();
+      if (!mounted) return;
+      setState(() {
+        _data = data;
+        _ensuring = false;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      final raw = e is ApiException ? e.message : '今日日课生成失败';
+      final msg = raw.contains('超时')
+          ? '生成超时了，模型有时较慢，点重试即可'
+          : raw;
+      setState(() {
+        _ensuring = false;
+        _loading = false;
+        _error = msg;
       });
     }
   }
@@ -81,6 +120,17 @@ class _TodayPageState extends State<TodayPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_ensuring || (_data?.needsGenerate == true && _error == null)) {
+      final day = _data?.plan.dayIndex ?? 1;
+      return Scaffold(
+        backgroundColor: _bg,
+        body: LessonGeneratingView(
+          title: '正在写你的 Day $day',
+          subtitle: '按水平 · 职业 · 场景 · 词库定制今日短文',
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: _bg,
       body: SafeArea(

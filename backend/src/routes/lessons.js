@@ -7,12 +7,21 @@ const router = express.Router();
 
 router.use(requireAuth);
 
-/** 今日 / 首篇日课（无则 AI 生成，失败降级种子） */
+/** 今日 / 首篇日课（无则 AI 生成） */
 router.get('/today', async (req, res, next) => {
+  const t0 = Date.now();
   try {
+    console.log(`[lessons/today] start user=${req.auth.userId}`);
     const lesson = await lessonService.getTodayLesson(req.auth.userId);
+    console.log(
+      `[lessons/today] ok user=${req.auth.userId} id=${lesson.id} ${Date.now() - t0}ms`,
+    );
     res.json({ lesson });
   } catch (err) {
+    console.warn(
+      `[lessons/today] fail user=${req.auth.userId} ${Date.now() - t0}ms:`,
+      err.code || err.message,
+    );
     next(err);
   }
 });

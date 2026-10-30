@@ -231,10 +231,8 @@ async function repairCollapsedDayIndexes(userId) {
   return repairDayIndexes(userId);
 }
 
-/**
- * 今日日课：已有则返回；否则按下一 Day 生成。
- */
-async function getTodayLesson(userId) {
+/** 仅查今日已有日课，不触发生成（避免 /api/today 被 LLM 拖死）。 */
+async function findTodayLesson(userId) {
   const profile = await profileService.ensureProfile(userId);
   const localDate = todayLocalDate(profile.timezone);
   await repairDayIndexes(userId);
@@ -245,10 +243,32 @@ async function getTodayLesson(userId) {
      ORDER BY id DESC LIMIT 1`,
     { userId, localDate },
   );
-  if (rows.length) return parseContent(rows[0]);
+  if (!rows.length) return null;
+  return parseContent(rows[0]);
+}
 
+/** 同用户并发进「今日生成」时复用同一 Promise，避免重复打 LLM。 */
+const _todayGenerateInflight = new Map();
+
+/**
+ * 今日日课：已有则返回；否则按下一 Day 生成。
+ */
+async function getTodayLesson(userId) {
+  const existing = await findTodayLesson(userId);
+  if (existing) return existing;
+
+  if (_todayGenerateInflight.has(userId)) {
+    return _todayGenerateInflight.get(userId);
+  }
+
+  const profile = await profileService.ensureProfile(userId);
+  const localDate = todayLocalDate(profile.timezone);
   const dayIndex = await resolveDayIndex(userId, localDate);
-  return createTodayLesson(userId, dayIndex);
+  const task = createTodayLesson(userId, dayIndex).finally(() => {
+    _todayGenerateInflight.delete(userId);
+  });
+  _todayGenerateInflight.set(userId, task);
+  return task;
 }
 
 /**
@@ -541,6 +561,7 @@ async function manualGenerate(userId) {
 }
 
 module.exports = {
+  findTodayLesson,
   getTodayLesson,
   getById,
   nextDayIndex,

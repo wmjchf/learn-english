@@ -104,19 +104,31 @@ class _LessonClozePageState extends State<LessonClozePage> {
     );
   }
 
+  void _refocusInput() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      // 再等一拍：部分 iOS / 模拟器在禁用过输入框后，需要重建连接才能打字
+      Future<void>.delayed(const Duration(milliseconds: 80), () {
+        if (!mounted) return;
+        if (!_focus.hasFocus) _focus.requestFocus();
+      });
+    });
+  }
+
   void _goNext() {
     if (_index >= _items.length - 1) {
       _completeLesson();
       return;
     }
+    // 先断掉旧 IME 连接，避免下一题「键盘在动、框不进字」
+    _focus.unfocus();
     setState(() {
       _index += 1;
       _judged = false;
-      _controller.clear();
+      _advancing = false;
+      _controller.value = TextEditingValue.empty;
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _focus.requestFocus();
-    });
+    _refocusInput();
   }
 
   Future<void> _onCta() async {
@@ -144,22 +156,25 @@ class _LessonClozePageState extends State<LessonClozePage> {
 
     // 首次判定当前题
     final ok = _norm(_controller.text) == _norm(_current.answer);
-    setState(() {
-      _judged = true;
-      _results[_index] = ok;
-      if (!ok) _wrongTotal += 1;
-    });
-
     if (ok) {
+      // 先失焦再标「正确」，避免 enabled/readOnly 切换打断 iOS 输入连接
       _advancing = true;
-      // 答对：稍顿一下再进下一题，让用户看到「正确」
+      _focus.unfocus();
+      setState(() {
+        _judged = true;
+        _results[_index] = true;
+      });
       await Future<void>.delayed(const Duration(milliseconds: 350));
       if (!mounted) return;
-      _advancing = false;
       _goNext();
       return;
     }
 
+    setState(() {
+      _judged = true;
+      _results[_index] = false;
+      _wrongTotal += 1;
+    });
     await _markWrongVocab(_current.answer);
   }
 
@@ -369,11 +384,16 @@ class _LessonClozePageState extends State<LessonClozePage> {
                         ),
                         const SizedBox(height: 10),
                         TextField(
+                          // 每题重建，避免上一题禁用输入后 IME 粘连
+                          key: ValueKey('cloze-field-$_index'),
                           controller: _controller,
                           focusNode: _focus,
                           autocorrect: false,
                           enableSuggestions: false,
-                          enabled: !_submitting && result != true,
+                          enableIMEPersonalizedLearning: false,
+                          // 勿用 enabled:false：iOS 上易导致键盘还在、文字进不了框
+                          readOnly: _submitting || _advancing || result == true,
+                          keyboardType: TextInputType.visiblePassword,
                           textCapitalization: TextCapitalization.none,
                           textInputAction: TextInputAction.done,
                           onSubmitted: (_) => _onCta(),
