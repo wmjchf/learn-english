@@ -314,10 +314,10 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
                     child: Text(
                       lesson.theme,
                       style: const TextStyle(
-                        fontSize: 14,
+                        fontSize: 15,
                         fontWeight: FontWeight.w700,
                         color: _text,
-                        height: 19 / 14,
+                        height: 20 / 15,
                       ),
                     ),
                   ),
@@ -327,9 +327,9 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
               Text(
                 lesson.listLabel,
                 style: const TextStyle(
-                  fontSize: 11,
+                  fontSize: 12,
                   color: _muted,
-                  height: 15 / 11,
+                  height: 16 / 12,
                 ),
               ),
               const SizedBox(height: 8),
@@ -356,19 +356,19 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
                             )
                           : scene.title,
                       style: const TextStyle(
-                        fontSize: 11,
+                        fontSize: 12,
                         fontWeight: FontWeight.w700,
                         color: _blue,
-                        height: 15 / 11,
+                        height: 16 / 12,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       scene.roleBackground,
                       style: const TextStyle(
-                        fontSize: 12,
+                        fontSize: 13,
                         color: _text,
-                        height: 16 / 12,
+                        height: 18 / 13,
                       ),
                     ),
                     if (scene.tasksDisplay.isNotEmpty) ...[
@@ -376,9 +376,9 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
                       Text(
                         scene.tasksDisplay,
                         style: const TextStyle(
-                          fontSize: 11,
+                          fontSize: 12,
                           color: _task,
-                          height: 15 / 11,
+                          height: 16 / 12,
                         ),
                       ),
                     ],
@@ -403,10 +403,10 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
                     Text(
                       '📖 短文：${article.titleDisplay(fallbackZh: lesson.theme)}',
                       style: const TextStyle(
-                        fontSize: 13,
+                        fontSize: 14,
                         fontWeight: FontWeight.w700,
                         color: _text,
-                        height: 18 / 13,
+                        height: 19 / 14,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -439,10 +439,10 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
                                   child: Text(
                                     '中文翻译',
                                     style: TextStyle(
-                                      fontSize: 11,
+                                      fontSize: 12,
                                       fontWeight: FontWeight.w700,
                                       color: _blue,
-                                      height: 15 / 11,
+                                      height: 16 / 12,
                                     ),
                                   ),
                                 ),
@@ -453,9 +453,9 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
                                   child: Text(
                                     _zhExpanded ? '收起' : '展开',
                                     style: const TextStyle(
-                                      fontSize: 11,
+                                      fontSize: 12,
                                       color: _muted,
-                                      height: 15 / 11,
+                                      height: 16 / 12,
                                     ),
                                   ),
                                 ),

@@ -6,7 +6,7 @@ class ZhMarkedText extends StatelessWidget {
     super.key,
     required this.text,
     this.extraHighlights = const [],
-    this.fontSize = 14,
+    this.fontSize = 15,
     this.color = const Color(0xFF334155),
   });
 

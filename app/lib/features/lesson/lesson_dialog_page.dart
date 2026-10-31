@@ -219,10 +219,10 @@ class _LessonDialogPageState extends State<LessonDialogPage> {
                         child: Text(
                           '对话：${dialog.titleDisplay()}',
                           style: const TextStyle(
-                            fontSize: 13,
+                            fontSize: 14,
                             fontWeight: FontWeight.w700,
                             color: _text,
-                            height: 18 / 13,
+                            height: 19 / 14,
                           ),
                         ),
                       ),
@@ -254,10 +254,10 @@ class _LessonDialogPageState extends State<LessonDialogPage> {
                             leading: Text(
                               '${dialog.turns[i].who}:',
                               style: const TextStyle(
-                                fontSize: 15,
+                                fontSize: 16,
                                 fontWeight: FontWeight.w700,
                                 color: _text,
-                                height: 22 / 15,
+                                height: 24 / 16,
                               ),
                             ),
                           ),
@@ -268,7 +268,7 @@ class _LessonDialogPageState extends State<LessonDialogPage> {
                               padding: const EdgeInsets.only(left: 2),
                               child: ZhMarkedText(
                                 text: dialog.turns[i].zh,
-                                fontSize: 13,
+                                fontSize: 14,
                                 extraHighlights: glossHighlightPhrases(
                                   lesson.content.targetLemmas.map(
                                     (l) =>

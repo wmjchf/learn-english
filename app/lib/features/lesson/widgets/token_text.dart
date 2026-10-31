@@ -13,7 +13,7 @@ class TokenText extends StatelessWidget {
     this.tempHighlightLemmas = const {},
     this.focusLemmas = const {},
     this.leading,
-    this.fontSize = 15,
+    this.fontSize = 16,
   });
 
   final List<LessonToken> tokens;
@@ -54,7 +54,7 @@ class TokenText extends StatelessWidget {
             t.surface,
             style: TextStyle(
               fontSize: fontSize,
-              height: 22 / fontSize,
+              height: 24 / fontSize,
               fontWeight:
                   (highlight || showFocus) ? FontWeight.w700 : FontWeight.w400,
               color: showFocus
