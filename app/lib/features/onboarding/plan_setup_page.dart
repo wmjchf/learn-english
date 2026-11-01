@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:app_starter/core/network/api_client.dart';
@@ -22,9 +24,12 @@ class _PlanSetupPageState extends State<PlanSetupPage> {
   static const _muted = Color(0xFF64748B);
   static const _hint = Color(0xFF94A3B8);
   static const _warn = Color(0xFFB45309);
+  static const _daysDebounce = Duration(milliseconds: 500);
 
   final _repo = PlanRepository();
   final _daysCtrl = TextEditingController();
+  Timer? _daysDebounceTimer;
+  int _daysEstimateSeq = 0;
 
   PlanContext? _ctx;
   int _minutes = 20;
@@ -45,6 +50,7 @@ class _PlanSetupPageState extends State<PlanSetupPage> {
 
   @override
   void dispose() {
+    _daysDebounceTimer?.cancel();
     _daysCtrl.dispose();
     super.dispose();
   }
@@ -82,13 +88,16 @@ class _PlanSetupPageState extends State<PlanSetupPage> {
   }
 
   Future<void> _recalcFromMinutes(int minutes) async {
+    _daysDebounceTimer?.cancel();
+    final seq = ++_daysEstimateSeq;
     setState(() {
+      _editingDays = false;
       _minutes = minutes;
       _estimating = true;
     });
     try {
       final est = await _repo.estimate(minutes: minutes);
-      if (!mounted) return;
+      if (!mounted || seq != _daysEstimateSeq) return;
       setState(() {
         _days = est.days;
         _dailyWords = est.dailyWords;
@@ -97,19 +106,22 @@ class _PlanSetupPageState extends State<PlanSetupPage> {
         _estimating = false;
       });
     } catch (_) {
-      if (mounted) setState(() => _estimating = false);
+      if (mounted && seq == _daysEstimateSeq) {
+        setState(() => _estimating = false);
+      }
     }
   }
 
   Future<void> _recalcFromDays(int days) async {
     if (days < 1) return;
+    final seq = ++_daysEstimateSeq;
     setState(() {
       _days = days;
       _estimating = true;
     });
     try {
       final est = await _repo.estimate(days: days);
-      if (!mounted) return;
+      if (!mounted || seq != _daysEstimateSeq) return;
       setState(() {
         _minutes = est.minutes;
         _dailyWords = est.dailyWords;
@@ -117,13 +129,39 @@ class _PlanSetupPageState extends State<PlanSetupPage> {
         _estimating = false;
       });
     } catch (_) {
-      if (mounted) setState(() => _estimating = false);
+      if (mounted && seq == _daysEstimateSeq) {
+        setState(() => _estimating = false);
+      }
+    }
+  }
+
+  /// 停输后再反算；连打数字不会每键请求。
+  void _scheduleDaysRecalc(String raw) {
+    _daysDebounceTimer?.cancel();
+    final n = int.tryParse(raw.trim());
+    if (n == null || n < 1) return;
+    _daysDebounceTimer = Timer(_daysDebounce, () {
+      if (!mounted) return;
+      _recalcFromDays(n);
+    });
+  }
+
+  Future<void> _flushDaysRecalc() async {
+    _daysDebounceTimer?.cancel();
+    final n = int.tryParse(_daysCtrl.text.trim());
+    if (n != null && n >= 1 && n != _days) {
+      await _recalcFromDays(n);
     }
   }
 
   Future<void> _submit() async {
     if (_submitting) return;
-    setState(() => _submitting = true);
+    await _flushDaysRecalc();
+    if (!mounted) return;
+    setState(() {
+      _editingDays = false;
+      _submitting = true;
+    });
     try {
       final ready = await _repo.confirm(minutes: _minutes, days: _days);
       if (!mounted) return;
@@ -253,11 +291,7 @@ class _PlanSetupPageState extends State<PlanSetupPage> {
                     controller: _daysCtrl,
                     editing: _editingDays,
                     onEdit: () => setState(() => _editingDays = true),
-                    onSubmitted: (v) {
-                      setState(() => _editingDays = false);
-                      final n = int.tryParse(v.trim());
-                      if (n != null) _recalcFromDays(n);
-                    },
+                    onChanged: _scheduleDaysRecalc,
                   ),
                   if (_estimating)
                     const Padding(
@@ -441,13 +475,13 @@ class _DaysCard extends StatelessWidget {
     required this.controller,
     required this.editing,
     required this.onEdit,
-    required this.onSubmitted,
+    required this.onChanged,
   });
 
   final TextEditingController controller;
   final bool editing;
   final VoidCallback onEdit;
-  final ValueChanged<String> onSubmitted;
+  final ValueChanged<String> onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -485,8 +519,7 @@ class _DaysCard extends StatelessWidget {
                 isDense: true,
                 suffixText: '天',
               ),
-              onSubmitted: onSubmitted,
-              onEditingComplete: () => onSubmitted(controller.text),
+              onChanged: onChanged,
             )
           else
             GestureDetector(
