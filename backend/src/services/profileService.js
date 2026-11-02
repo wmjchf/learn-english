@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const { pool } = require('../db');
 const catalogService = require('./catalogService');
 
@@ -11,6 +12,22 @@ const ONBOARDING_STEPS = [
   'plan',
   'done',
 ];
+
+/** 影响成文主题/语境的画像指纹；变更后未完成今日课需重生成。 */
+function generationFingerprint(profile) {
+  if (!profile) return '';
+  const scenes = [...(profile.scenes || [])].map(String).sort().join(',');
+  const interests = [...(profile.interests || [])].map(String).sort().join(',');
+  const raw = [
+    profile.generationLevel || profile.abilityLevel || '',
+    profile.jobCode || '',
+    (profile.jobRaw || '').trim(),
+    scenes,
+    (profile.sceneRaw || '').trim(),
+    interests,
+  ].join('|');
+  return crypto.createHash('sha1').update(raw).digest('hex').slice(0, 16);
+}
 
 function parseJsonArray(value) {
   if (value == null) return [];
@@ -255,6 +272,7 @@ async function completeOnboarding(userId) {
 module.exports = {
   LEVELS,
   ONBOARDING_STEPS,
+  generationFingerprint,
   ensureProfile,
   getProfile,
   patchProfile,

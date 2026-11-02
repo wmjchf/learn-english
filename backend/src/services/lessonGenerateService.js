@@ -76,11 +76,12 @@ function buildPrompt({
 - 短文+对话合计须覆盖全部目标词（覆盖率≥70%，尽量100%）
 - 先列好要用到的目标词再写故事，再写 theme/title
 - theme 与故事必须是新事件，不得与近期日课雷同
+- 主题/场景导读/短文/对话必须明显贴合职业「${jobLabel}」与场景「${sceneLine}」（兴趣可作点缀：${interestLine}）；禁止写成与当前画像无关的通用职场鸡汤
 
 字段：
-theme(中文标题 4-10 字：必须概括本篇短文的具体事件/话题，内容不同则 theme 必须不同；禁止「今日职场」「商务英语」「职场沟通」等空泛词),
-title(英文短标题，同样要具体、贴合本篇内容),
-scene:{roleBackground(中文1-2句),tasks[3]},
+theme(中文标题 4-10 字：必须概括本篇短文的具体事件/话题，且能看出职业或场景；内容不同则 theme 必须不同；禁止「今日职场」「商务英语」「职场沟通」等空泛词),
+title(英文短标题，同样要具体、贴合本篇内容与画像),
+scene:{roleBackground(中文1-2句，点明身份与场景),tasks[3]},
 article:{title(可贴合短文的英文题),zhTitle(title的中文译名，4-12字，具体),zhLead(中文≤40字，点出本篇具体事),enPlain(英文55-80词，自然写入目标词),zhPlain(enPlain的完整中文翻译；目标词对应的中文必须用【】包住，如【搬迁】；勿翻译成词表)},
 dialog:{zhTitle(对话英文题的中文译名),zhLead(中文≤30字场景概要，不是台词翻译),turns:[{who,en,zh}] 恰好3轮；zh必须是对本轮 en 的忠实中文翻译（勿写成剧情摘要）；目标词对应中文用【】包住；对话里也可写入剩余目标词},
 cloze:[{sentence含________,hintZh,answer,before,after}] 恰好8题；answer∈目标词且互不重复
@@ -444,6 +445,7 @@ async function generateLessonForUser(
       const { lesson, check, usage, model, latencyMs } = await generateOnce(ctx);
       if (check.ok) {
         await wordDictService.attachDefsToLesson(lesson);
+        lesson.profileFp = profileService.generationFingerprint(profile);
         console.log(
           `[lesson] ok day=${dayIndex} attempt=${attempt} llm=${latencyMs || '?'}ms model=${model} cov=${((check.coverage?.ratio || 0) * 100).toFixed(0)}%`,
         );

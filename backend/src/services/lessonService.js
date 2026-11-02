@@ -265,7 +265,7 @@ async function findTodayLesson(userId) {
 const _todayGenerateInflight = new Map();
 
 /**
- * 今日日课：已有则返回；否则按下一 Day 生成。
+ * 今日日课：已有则返回（含未完成；改画像不回溯已生成篇）；否则按下一 Day 生成。
  */
 async function getTodayLesson(userId) {
   const existing = await findTodayLesson(userId);
