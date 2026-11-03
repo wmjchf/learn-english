@@ -314,10 +314,10 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
                     child: Text(
                       lesson.theme,
                       style: const TextStyle(
-                        fontSize: 15,
+                        fontSize: 16,
                         fontWeight: FontWeight.w700,
                         color: _text,
-                        height: 20 / 15,
+                        height: 22 / 16,
                       ),
                     ),
                   ),
@@ -327,9 +327,9 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
               Text(
                 lesson.listLabel,
                 style: const TextStyle(
-                  fontSize: 12,
+                  fontSize: 13,
                   color: _muted,
-                  height: 16 / 12,
+                  height: 18 / 13,
                 ),
               ),
               const SizedBox(height: 8),
@@ -356,19 +356,19 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
                             )
                           : scene.title,
                       style: const TextStyle(
-                        fontSize: 12,
+                        fontSize: 13,
                         fontWeight: FontWeight.w700,
                         color: _blue,
-                        height: 16 / 12,
+                        height: 18 / 13,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       scene.roleBackground,
                       style: const TextStyle(
-                        fontSize: 13,
+                        fontSize: 14,
                         color: _text,
-                        height: 18 / 13,
+                        height: 20 / 14,
                       ),
                     ),
                     if (scene.tasksDisplay.isNotEmpty) ...[
@@ -376,9 +376,9 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
                       Text(
                         scene.tasksDisplay,
                         style: const TextStyle(
-                          fontSize: 12,
+                          fontSize: 13,
                           color: _task,
-                          height: 16 / 12,
+                          height: 18 / 13,
                         ),
                       ),
                     ],
@@ -403,10 +403,10 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
                     Text(
                       '📖 短文：${article.titleDisplay(fallbackZh: lesson.theme)}',
                       style: const TextStyle(
-                        fontSize: 14,
+                        fontSize: 15,
                         fontWeight: FontWeight.w700,
                         color: _text,
-                        height: 19 / 14,
+                        height: 20 / 15,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -416,6 +416,7 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
                       knownLemmas: _known,
                       tempHighlightLemmas: _tempHl,
                       focusLemmas: _focus,
+                      fontSize: 17,
                     ),
                     if (article.zhDisplay.isNotEmpty) ...[
                       const SizedBox(height: 10),
@@ -439,10 +440,10 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
                                   child: Text(
                                     '中文翻译',
                                     style: TextStyle(
-                                      fontSize: 12,
+                                      fontSize: 13,
                                       fontWeight: FontWeight.w700,
                                       color: _blue,
-                                      height: 16 / 12,
+                                      height: 18 / 13,
                                     ),
                                   ),
                                 ),
@@ -453,9 +454,9 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
                                   child: Text(
                                     _zhExpanded ? '收起' : '展开',
                                     style: const TextStyle(
-                                      fontSize: 12,
+                                      fontSize: 13,
                                       color: _muted,
-                                      height: 16 / 12,
+                                      height: 18 / 13,
                                     ),
                                   ),
                                 ),
@@ -465,6 +466,7 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
                               const SizedBox(height: 6),
                               ZhMarkedText(
                                 text: article.zhDisplay,
+                                fontSize: 16,
                                 extraHighlights: glossHighlightPhrases(
                                   lesson.content.targetLemmas.map(
                                     (l) =>
