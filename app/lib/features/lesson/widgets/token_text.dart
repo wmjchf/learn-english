@@ -28,9 +28,9 @@ class TokenText extends StatelessWidget {
   static const _text = Color(0xFF17202E);
   static const _hlBg = Color(0xFFFFF3C4);
   static const _hlFg = Color(0xFF8A5A00);
-  static const _focusBg = Color(0xFFDBEAFE);
-  static const _focusFg = Color(0xFF1E40AF);
-  static const _focusBorder = Color(0xFF2563EB);
+  static const _focusBg = Color(0xFFECFCCB);
+  static const _focusFg = Color(0xFF4D7C0F);
+  static const _focusBorder = Color(0xFF7AC70C);
 
   @override
   Widget build(BuildContext context) {

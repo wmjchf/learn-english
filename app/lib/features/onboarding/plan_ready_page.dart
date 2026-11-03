@@ -9,10 +9,10 @@ class PlanReadyPage extends StatelessWidget {
   final PlanReady ready;
 
   static const _bg = Color(0xFFF8FAFC);
-  static const _blue = Color(0xFF2563EB);
-  static const _blueSoft = Color(0xFFEFF6FF);
-  static const _blueBorder = Color(0xFFBFDBFE);
-  static const _blueDeep = Color(0xFF1D4ED8);
+  static const _blue = Color(0xFF7AC70C);
+  static const _blueSoft = Color(0xFFF7FEE7);
+  static const _blueBorder = Color(0xFFD9F99D);
+  static const _blueDeep = Color(0xFF4D7C0F);
   static const _text = Color(0xFF0F172A);
   static const _muted = Color(0xFF64748B);
   static const _track = Color(0xFFE2E8F0);

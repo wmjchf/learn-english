@@ -19,7 +19,7 @@ class _LoginPageState extends State<LoginPage> {
   static const _bg = Color(0xFFF8FAFC);
   static const _text = Color(0xFF0F172A);
   static const _muted = Color(0xFF64748B);
-  static const _blue = Color(0xFF2563EB);
+  static const _blue = Color(0xFF7AC70C);
 
   late final AuthRepository _auth =
       widget.authRepository ?? AuthRepository();
@@ -159,11 +159,6 @@ class _LoginPageState extends State<LoginPage> {
               ),
               const SizedBox(height: 8),
               const Text(
-                AppBrand.tagline,
-                style: TextStyle(fontSize: 15, color: _muted),
-              ),
-              const SizedBox(height: 8),
-              const Text(
                 '手机号验证码登录',
                 style: TextStyle(fontSize: 14, color: _muted),
               ),
@@ -200,7 +195,7 @@ class _LoginPageState extends State<LoginPage> {
                           _countdown > 0 || _sending ? null : _onSendCode,
                       style: OutlinedButton.styleFrom(
                         foregroundColor: _blue,
-                        side: const BorderSide(color: Color(0xFFBFDBFE)),
+                        side: const BorderSide(color: Color(0xFFD9F99D)),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),

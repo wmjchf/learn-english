@@ -181,7 +181,7 @@ class _ScenePageState extends State<ScenePage> {
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: const BorderSide(
-                    color: Color(0xFF2563EB),
+                    color: Color(0xFF7AC70C),
                     width: 1.5,
                   ),
                 ),

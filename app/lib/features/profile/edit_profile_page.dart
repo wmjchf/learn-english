@@ -46,10 +46,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
   static const _text = Color(0xFF0F172A);
   static const _muted = Color(0xFF64748B);
   static const _meta = Color(0xFF94A3B8);
-  static const _blue = Color(0xFF2563EB);
-  static const _blueSoft = Color(0xFFEFF6FF);
-  static const _blueDeep = Color(0xFF1E3A8A);
-  static const _blueMid = Color(0xFF3B82F6);
+  static const _blue = Color(0xFF7AC70C);
+  static const _blueSoft = Color(0xFFF7FEE7);
+  static const _blueDeep = Color(0xFF365314);
+  static const _blueMid = Color(0xFFA3E635);
   static const _border = Color(0xFFE2E8F0);
   static const _divider = Color(0xFFF1F5F9);
   static const _chevron = Color(0xFFCBD5E1);
@@ -747,7 +747,7 @@ class _LevelCard extends StatelessWidget {
                         onPressed: canDown ? onDown : null,
                         style: OutlinedButton.styleFrom(
                           foregroundColor: _EditProfilePageState._blue,
-                          side: const BorderSide(color: Color(0xFFDBEAFE)),
+                          side: const BorderSide(color: Color(0xFFECFCCB)),
                           backgroundColor: _EditProfilePageState._bg,
                           minimumSize: const Size.fromHeight(40),
                           shape: RoundedRectangleBorder(
@@ -769,7 +769,7 @@ class _LevelCard extends StatelessWidget {
                         onPressed: canUp ? onUp : null,
                         style: OutlinedButton.styleFrom(
                           foregroundColor: _EditProfilePageState._blue,
-                          side: const BorderSide(color: Color(0xFFDBEAFE)),
+                          side: const BorderSide(color: Color(0xFFECFCCB)),
                           backgroundColor: _EditProfilePageState._bg,
                           minimumSize: const Size.fromHeight(40),
                           shape: RoundedRectangleBorder(

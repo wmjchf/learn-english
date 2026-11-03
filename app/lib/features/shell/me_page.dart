@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:app_starter/core/network/api_client.dart';
+import 'package:app_starter/core/theme/app_colors.dart';
 import 'package:app_starter/core/ui/app_toast.dart';
 import 'package:app_starter/features/auth/auth_repository.dart';
 import 'package:app_starter/features/onboarding/guide_page.dart';
@@ -28,10 +29,10 @@ class _MePageState extends State<MePage> {
   static const _text = Color(0xFF0F172A);
   static const _muted = Color(0xFF64748B);
   static const _meta = Color(0xFF94A3B8);
-  static const _blue = Color(0xFF2563EB);
-  static const _hero = Color(0xFF1E3A8A);
-  static const _heroLabel = Color(0xFF93C5FD);
-  static const _heroMeta = Color(0xFFBFDBFE);
+  static const _blue = Color(0xFF7AC70C);
+  static const _hero = Color(0xFF365314);
+  static const _heroLabel = Color(0xFFBEF264);
+  static const _heroMeta = Color(0xFFD9F99D);
   static const _border = Color(0xFFE2E8F0);
   static const _divider = Color(0xFFF1F5F9);
 
@@ -227,6 +228,7 @@ class _MePageState extends State<MePage> {
                                 label: '连胜',
                                 value: _me!.stats.streakLabel,
                                 footnote: _me!.stats.streakFootnote,
+                                accent: true,
                               ),
                             ),
                           ],
@@ -356,47 +358,51 @@ class _StatCard extends StatelessWidget {
     required this.label,
     required this.value,
     required this.footnote,
+    this.accent = false,
   });
 
   final String label;
   final String value;
   final String footnote;
+  final bool accent;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 16, 14, 16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: accent ? AppColors.accentSoft : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _MePageState._border),
+        border: Border.all(
+          color: accent ? AppColors.accentBorder : _MePageState._border,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 11,
-              fontWeight: FontWeight.w500,
-              color: _MePageState._meta,
+              fontWeight: FontWeight.w600,
+              color: accent ? AppColors.accentDeep : _MePageState._meta,
             ),
           ),
           const SizedBox(height: 6),
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w700,
-              color: _MePageState._text,
+              color: accent ? AppColors.accent : _MePageState._text,
             ),
           ),
           const SizedBox(height: 6),
           Text(
             footnote,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 11,
-              color: _MePageState._muted,
+              color: accent ? AppColors.accentDeep : _MePageState._muted,
             ),
           ),
         ],

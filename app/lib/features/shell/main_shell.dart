@@ -18,7 +18,7 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   late int _index;
 
-  static const _active = Color(0xFF2563EB);
+  static const _active = Color(0xFF7AC70C);
   static const _inactive = Color(0xFF8A94A6);
   static const _barBorder = Color(0xFFE3E7EE);
 

@@ -10,8 +10,7 @@ class GuidePage extends StatelessWidget {
 
   static const _bg = Color(0xFFF8FAFC);
   static const _text = Color(0xFF0F172A);
-  static const _blue = Color(0xFF2563EB);
-  static const _blueDeep = Color(0xFF1E40AF);
+  static const _blue = Color(0xFF7AC70C);
   static const _muted = Color(0xFF475569);
 
   @override
@@ -27,25 +26,24 @@ class GuidePage extends StatelessWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(28),
+                      child: Image.asset(
+                        AppBrand.logoAsset,
+                        width: 128,
+                        height: 128,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                     Text(
                       AppBrand.name,
                       textAlign: TextAlign.center,
                       style: const TextStyle(
-                        fontSize: 40,
+                        fontSize: 28,
                         fontWeight: FontWeight.w700,
                         color: _text,
                         height: 1.2,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      AppBrand.tagline,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: _blueDeep,
-                        height: 1.4,
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -155,7 +153,7 @@ class _MotionStageState extends State<_MotionStage>
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20),
         child: ColoredBox(
-          color: const Color(0xFFEFF6FF),
+          color: const Color(0xFFF7FEE7),
           child: AnimatedBuilder(
             animation: _ctrl,
             builder: (context, _) {
@@ -219,14 +217,14 @@ class _FloatingChip extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: 0.95),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFF93C5FD)),
+          border: Border.all(color: const Color(0xFFBEF264)),
         ),
         child: Text(
           label,
           style: const TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w600,
-            color: Color(0xFF2563EB),
+            color: Color(0xFF7AC70C),
           ),
         ),
       ),

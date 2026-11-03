@@ -81,7 +81,7 @@ class _WordSheetBodyState extends State<_WordSheetBody> {
   final _repo = WordRepository();
 
   static const _text = Color(0xFF0F172A);
-  static const _blue = Color(0xFF2563EB);
+  static const _blue = Color(0xFF7AC70C);
   static const _muted = Color(0xFF94A3B8);
   static const _body = Color(0xFF334155);
   static const _panel = Color(0xFFF8FAFC);
@@ -384,7 +384,7 @@ class _WordSheetBodyState extends State<_WordSheetBody> {
                           },
                     style: FilledButton.styleFrom(
                       backgroundColor: _blue,
-                      disabledBackgroundColor: const Color(0xFFBFDBFE),
+                      disabledBackgroundColor: const Color(0xFFD9F99D),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),

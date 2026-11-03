@@ -201,7 +201,7 @@ class _TopBar extends StatelessWidget {
   final VoidCallback onBack;
 
   static const _text = Color(0xFF0F172A);
-  static const _blue = Color(0xFF2563EB);
+  static const _blue = Color(0xFF7AC70C);
   static const _track = Color(0xFFE2E8F0);
 
   @override
@@ -275,7 +275,7 @@ class _CardSession extends StatelessWidget {
   final VoidCallback onForgot;
   final VoidCallback onKnow;
 
-  static const _blue = Color(0xFF2563EB);
+  static const _blue = Color(0xFF7AC70C);
   static const _border = Color(0xFFE2E8F0);
   static const _red = Color(0xFFDC2626);
   static const _meta = Color(0xFF94A3B8);
@@ -443,7 +443,7 @@ class _BackFace extends StatelessWidget {
   static const _body = Color(0xFF334155);
   static const _muted = Color(0xFF64748B);
   static const _meta = Color(0xFF94A3B8);
-  static const _blueSoft = Color(0xFFEFF6FF);
+  static const _blueSoft = Color(0xFFF7FEE7);
 
   Widget _block(String label, String body, {bool strong = false}) {
     if (body.trim().isEmpty) return const SizedBox.shrink();
@@ -580,7 +580,7 @@ class _EmptyDeck extends StatelessWidget {
             FilledButton(
               onPressed: onClose,
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF2563EB),
+                backgroundColor: const Color(0xFF7AC70C),
               ),
               child: const Text('返回'),
             ),
@@ -610,7 +610,7 @@ class _ErrorView extends StatelessWidget {
             FilledButton(
               onPressed: onRetry,
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF2563EB),
+                backgroundColor: const Color(0xFF7AC70C),
               ),
               child: const Text('重试'),
             ),
@@ -634,8 +634,8 @@ class _DoneView extends StatelessWidget {
 
   static const _text = Color(0xFF0F172A);
   static const _muted = Color(0xFF64748B);
-  static const _blue = Color(0xFF2563EB);
-  static const _blueSoft = Color(0xFFEFF6FF);
+  static const _blue = Color(0xFF7AC70C);
+  static const _blueSoft = Color(0xFFF7FEE7);
   static const _redSoft = Color(0xFFFEF2F2);
   static const _red = Color(0xFFDC2626);
 

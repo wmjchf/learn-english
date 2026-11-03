@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:app_starter/core/network/api_client.dart';
+import 'package:app_starter/core/theme/app_colors.dart';
 import 'package:app_starter/features/lesson/lesson_article_page.dart';
 import 'package:app_starter/features/lesson/lesson_repository.dart';
 import 'package:app_starter/features/lesson/widgets/lesson_generating_view.dart';
@@ -27,9 +28,9 @@ class _TodayPageState extends State<TodayPage> {
   static const _text = Color(0xFF0F172A);
   static const _meta = Color(0xFF64748B);
   static const _metaLight = Color(0xFF94A3B8);
-  static const _hero = Color(0xFF1E3A8A);
-  static const _heroLabel = Color(0xFF93C5FD);
-  static const _heroMeta = Color(0xFFBFDBFE);
+  static const _hero = Color(0xFF365314);
+  static const _heroLabel = Color(0xFFBEF264);
+  static const _heroMeta = Color(0xFFD9F99D);
 
   @override
   void initState() {
@@ -172,12 +173,25 @@ class _TodayPageState extends State<TodayPage> {
                         const SizedBox(height: 12),
                         Row(
                           children: [
-                            Text(
-                              '连胜 ${_data!.streakDays} 天',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                color: _meta,
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.accentSoft,
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(
+                                  color: AppColors.accentBorder,
+                                ),
+                              ),
+                              child: Text(
+                                '连胜 ${_data!.streakDays} 天',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.accentDeep,
+                                ),
                               ),
                             ),
                             const Spacer(),
@@ -219,7 +233,7 @@ class _PaceCard extends StatelessWidget {
   static const _text = Color(0xFF0F172A);
   static const _meta = Color(0xFF64748B);
   static const _metaLight = Color(0xFF94A3B8);
-  static const _blue = Color(0xFF2563EB);
+  static const _blue = Color(0xFF7AC70C);
   static const _track = Color(0xFFE2E8F0);
   static const _border = Color(0xFFE2E8F0);
 
@@ -344,8 +358,8 @@ class _ReviewRow extends StatelessWidget {
   static const _text = Color(0xFF0F172A);
   static const _meta = Color(0xFF64748B);
   static const _metaLight = Color(0xFF94A3B8);
-  static const _blue = Color(0xFF2563EB);
-  static const _blueSoft = Color(0xFFEFF6FF);
+  static const _blue = Color(0xFF7AC70C);
+  static const _blueSoft = Color(0xFFF7FEE7);
   static const _border = Color(0xFFE2E8F0);
 
   @override
@@ -357,7 +371,7 @@ class _ReviewRow extends StatelessWidget {
       decoration: BoxDecoration(
         color: hasDue ? _blueSoft : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: hasDue ? const Color(0xFFBFDBFE) : _border),
+        border: Border.all(color: hasDue ? const Color(0xFFD9F99D) : _border),
       ),
       child: Row(
         children: [

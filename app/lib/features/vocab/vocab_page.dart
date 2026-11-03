@@ -27,11 +27,11 @@ class _VocabPageState extends State<VocabPage> {
   static const _text = Color(0xFF0F172A);
   static const _muted = Color(0xFF64748B);
   static const _meta = Color(0xFF94A3B8);
-  static const _blue = Color(0xFF2563EB);
-  static const _blueSoft = Color(0xFFEFF6FF);
-  static const _hero = Color(0xFF1E3A8A);
-  static const _heroLabel = Color(0xFF93C5FD);
-  static const _heroMeta = Color(0xFFBFDBFE);
+  static const _blue = Color(0xFF7AC70C);
+  static const _blueSoft = Color(0xFFF7FEE7);
+  static const _hero = Color(0xFF365314);
+  static const _heroLabel = Color(0xFFBEF264);
+  static const _heroMeta = Color(0xFFD9F99D);
   static const _border = Color(0xFFE2E8F0);
 
   @override
@@ -359,7 +359,7 @@ class _WordRow extends StatelessWidget {
       case 'today':
         return _VocabPageState._blue;
       case 'tomorrow':
-        return const Color(0xFF93C5FD);
+        return const Color(0xFFBEF264);
       default:
         return _VocabPageState._border;
     }

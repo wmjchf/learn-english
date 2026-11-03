@@ -2,8 +2,8 @@
 abstract final class AppBrand {
   static const name = '有戏单词';
 
-  /// 主 slogan
-  static const tagline = '单词有戏，英语就有戏';
+  /// 品牌 Logo（hope 视觉）
+  static const logoAsset = 'assets/brand/logo.png';
 
   /// 品类定位
   static const pitch = '场景化英语学习';

@@ -55,12 +55,12 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
   };
 
   static const _bg = Color(0xFFF5F6F8);
-  static const _blue = Color(0xFF1A56DB);
+  static const _blue = Color(0xFF7AC70C);
   static const _text = Color(0xFF17202E);
   static const _muted = Color(0xFF8A94A6);
   static const _task = Color(0xFF4A5568);
   static const _sceneBg = Color(0xFFE8EFFD);
-  static const _sceneBorder = Color(0xFFBFDBFE);
+  static const _sceneBorder = Color(0xFFD9F99D);
   static const _cardBg = Color(0xFFF8F9FC);
   static const _cardBorder = Color(0xFFE3E7EE);
   static const _zhBg = Color(0xFFF0F3F9);
@@ -566,7 +566,7 @@ class _Header extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w700,
-                    color: Color(0xFF2563EB),
+                    color: Color(0xFF7AC70C),
                     height: 18 / 20,
                   ),
                 ),
@@ -576,7 +576,7 @@ class _Header extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
-                    color: Color(0xFF2563EB),
+                    color: Color(0xFF7AC70C),
                     height: 20 / 16,
                   ),
                 ),

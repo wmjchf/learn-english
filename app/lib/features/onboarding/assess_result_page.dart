@@ -17,9 +17,9 @@ class AssessResultPage extends StatelessWidget {
   final bool reassess;
 
   static const _bg = Color(0xFFF8FAFC);
-  static const _blue = Color(0xFF2563EB);
-  static const _blueSoft = Color(0xFFEFF6FF);
-  static const _blueBorder = Color(0xFFDBEAFE);
+  static const _blue = Color(0xFF7AC70C);
+  static const _blueSoft = Color(0xFFF7FEE7);
+  static const _blueBorder = Color(0xFFECFCCB);
   static const _text = Color(0xFF0F172A);
   static const _muted = Color(0xFF64748B);
   static const _hint = Color(0xFF94A3B8);

@@ -27,7 +27,7 @@ class OnboardingScaffold extends StatelessWidget {
   static const bg = Color(0xFFF8FAFC);
   static const text = Color(0xFF0F172A);
   static const muted = Color(0xFF64748B);
-  static const blue = Color(0xFF2563EB);
+  static const blue = Color(0xFF7AC70C);
 
   @override
   Widget build(BuildContext context) {
@@ -83,7 +83,7 @@ class OnboardingScaffold extends StatelessWidget {
                   onPressed: canSubmit ? onCta : null,
                   style: FilledButton.styleFrom(
                     backgroundColor: blue,
-                    disabledBackgroundColor: const Color(0xFFBFDBFE),
+                    disabledBackgroundColor: const Color(0xFFD9F99D),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                     ),

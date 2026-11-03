@@ -33,7 +33,7 @@ class _LessonClozePageState extends State<LessonClozePage> {
   bool _advancing = false;
 
   static const _bg = Color(0xFFF5F6F8);
-  static const _blue = Color(0xFF1A56DB);
+  static const _blue = Color(0xFF7AC70C);
   static const _text = Color(0xFF17202E);
   static const _muted = Color(0xFF64748B);
   static const _border = Color(0xFFE3E7EE);
@@ -230,7 +230,7 @@ class _LessonClozePageState extends State<LessonClozePage> {
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w700,
-                            color: Color(0xFF2563EB),
+                            color: Color(0xFF7AC70C),
                           ),
                         ),
                         SizedBox(width: 2),
@@ -239,7 +239,7 @@ class _LessonClozePageState extends State<LessonClozePage> {
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w500,
-                            color: Color(0xFF2563EB),
+                            color: Color(0xFF7AC70C),
                           ),
                         ),
                       ],

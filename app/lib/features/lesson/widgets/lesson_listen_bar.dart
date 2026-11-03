@@ -8,7 +8,7 @@ class LessonListenBar extends StatefulWidget {
     required this.tts,
     required this.text,
     this.idleLabel = '听一遍短文',
-    this.accent = const Color(0xFF1A56DB),
+    this.accent = const Color(0xFF7AC70C),
   });
 
   final LessonTts tts;

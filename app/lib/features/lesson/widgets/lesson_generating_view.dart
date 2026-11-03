@@ -24,9 +24,9 @@ class _LessonGeneratingViewState extends State<LessonGeneratingView>
   static const _text = Color(0xFF0F172A);
   static const _muted = Color(0xFF64748B);
   static const _meta = Color(0xFF94A3B8);
-  static const _blue = Color(0xFF2563EB);
-  static const _blueSoft = Color(0xFFEFF6FF);
-  static const _blueDeep = Color(0xFF1E3A8A);
+  static const _blue = Color(0xFF7AC70C);
+  static const _blueSoft = Color(0xFFF7FEE7);
+  static const _blueDeep = Color(0xFF365314);
   static const _border = Color(0xFFE2E8F0);
 
   static const _steps = [
@@ -84,14 +84,28 @@ class _LessonGeneratingViewState extends State<LessonGeneratingView>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
-                AppBrand.name,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: _blue,
-                  letterSpacing: 0.2,
-                ),
+              Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.asset(
+                      AppBrand.logoAsset,
+                      width: 28,
+                      height: 28,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    AppBrand.name,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: _blue,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 20),
               Text(
@@ -187,7 +201,7 @@ class _LessonGeneratingViewState extends State<LessonGeneratingView>
                 decoration: BoxDecoration(
                   color: _blueSoft,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFBFDBFE)),
+                  border: Border.all(color: const Color(0xFFD9F99D)),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -240,7 +254,7 @@ class _StepRow extends StatelessWidget {
 
   static const _text = Color(0xFF0F172A);
   static const _meta = Color(0xFF94A3B8);
-  static const _blue = Color(0xFF2563EB);
+  static const _blue = Color(0xFF7AC70C);
   static const _border = Color(0xFFE2E8F0);
 
   @override
@@ -253,10 +267,10 @@ class _StepRow extends StatelessWidget {
           height: 28,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: done || active ? const Color(0xFFEFF6FF) : Colors.white,
+            color: done || active ? const Color(0xFFF7FEE7) : Colors.white,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: done || active ? const Color(0xFFBFDBFE) : _border,
+              color: done || active ? const Color(0xFFD9F99D) : _border,
             ),
           ),
           child: done

@@ -29,12 +29,12 @@ class _LibraryPageState extends State<LibraryPage> {
   static const _text = Color(0xFF0F172A);
   static const _muted = Color(0xFF64748B);
   static const _meta = Color(0xFF94A3B8);
-  static const _blue = Color(0xFF2563EB);
-  static const _hero = Color(0xFF1E3A8A);
-  static const _heroLabel = Color(0xFF93C5FD);
-  static const _heroMeta = Color(0xFFBFDBFE);
+  static const _blue = Color(0xFF7AC70C);
+  static const _hero = Color(0xFF365314);
+  static const _heroLabel = Color(0xFFBEF264);
+  static const _heroMeta = Color(0xFFD9F99D);
   static const _border = Color(0xFFE2E8F0);
-  static const _chipBg = Color(0xFFEFF6FF);
+  static const _chipBg = Color(0xFFF7FEE7);
 
   @override
   void initState() {
@@ -285,7 +285,7 @@ class _GenerateHero extends StatelessWidget {
               onPressed: enabled ? onGenerate : null,
               style: FilledButton.styleFrom(
                 backgroundColor: Colors.white,
-                disabledBackgroundColor: const Color(0xFFBFDBFE),
+                disabledBackgroundColor: const Color(0xFFD9F99D),
                 foregroundColor: _LibraryPageState._hero,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
