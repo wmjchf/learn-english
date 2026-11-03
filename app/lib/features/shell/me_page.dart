@@ -30,9 +30,6 @@ class _MePageState extends State<MePage> {
   static const _muted = Color(0xFF64748B);
   static const _meta = Color(0xFF94A3B8);
   static const _blue = Color(0xFF7AC70C);
-  static const _hero = Color(0xFF365314);
-  static const _heroLabel = Color(0xFFBEF264);
-  static const _heroMeta = Color(0xFFD9F99D);
   static const _border = Color(0xFFE2E8F0);
   static const _divider = Color(0xFFF1F5F9);
 
@@ -284,18 +281,18 @@ class _HeroCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(22, 24, 22, 22),
       decoration: BoxDecoration(
-        color: _MePageState._hero,
-        borderRadius: BorderRadius.circular(24),
+        gradient: AppColors.heroGradient,
+        borderRadius: BorderRadius.circular(28),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             '学习画像',
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w500,
-              color: _MePageState._heroLabel,
+              color: Colors.white.withValues(alpha: 0.92),
             ),
           ),
           const SizedBox(height: 10),
@@ -311,31 +308,31 @@ class _HeroCard extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             hero.abilityLine,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
-              color: _MePageState._heroMeta,
+              color: Colors.white.withValues(alpha: 0.88),
               height: 20 / 13,
             ),
           ),
           Text(
             hero.note,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
-              color: _MePageState._heroMeta,
+              color: Colors.white.withValues(alpha: 0.88),
               height: 20 / 13,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
-            height: 46,
+            height: 48,
             child: FilledButton(
               onPressed: onEdit,
               style: FilledButton.styleFrom(
                 backgroundColor: Colors.white,
-                foregroundColor: _MePageState._hero,
+                foregroundColor: AppColors.accent,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(999),
                 ),
               ),
               child: const Text(
@@ -343,6 +340,7 @@ class _HeroCard extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
+                  color: AppColors.accent,
                 ),
               ),
             ),

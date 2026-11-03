@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:app_starter/core/config/app_brand.dart';
+import 'package:app_starter/core/theme/app_colors.dart';
 
 /// 首篇 / 日课生成中的全屏状态：步骤条 + 轮播提示，避免空白转圈。
 class LessonGeneratingView extends StatefulWidget {
@@ -26,8 +27,6 @@ class _LessonGeneratingViewState extends State<LessonGeneratingView>
   static const _meta = Color(0xFF94A3B8);
   static const _blue = Color(0xFF7AC70C);
   static const _blueSoft = Color(0xFFF7FEE7);
-  static const _blueDeep = Color(0xFF365314);
-  static const _border = Color(0xFFE2E8F0);
 
   static const _steps = [
     ('读你的画像', '水平、职业与使用场景'),
@@ -134,8 +133,8 @@ class _LessonGeneratingViewState extends State<LessonGeneratingView>
                 child: Container(
                   padding: const EdgeInsets.fromLTRB(22, 28, 22, 28),
                   decoration: BoxDecoration(
-                    color: _blueDeep,
-                    borderRadius: BorderRadius.circular(24),
+                    gradient: AppColors.heroGradient,
+                    borderRadius: BorderRadius.circular(28),
                   ),
                   child: Column(
                     children: [

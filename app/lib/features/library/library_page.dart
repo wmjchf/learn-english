@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:app_starter/core/network/api_client.dart';
+import 'package:app_starter/core/theme/app_colors.dart';
 import 'package:app_starter/core/ui/app_toast.dart';
 import 'package:app_starter/core/ui/blocking_overlay.dart';
 import 'package:app_starter/features/library/library_models.dart';
@@ -30,9 +31,6 @@ class _LibraryPageState extends State<LibraryPage> {
   static const _muted = Color(0xFF64748B);
   static const _meta = Color(0xFF94A3B8);
   static const _blue = Color(0xFF7AC70C);
-  static const _hero = Color(0xFF365314);
-  static const _heroLabel = Color(0xFFBEF264);
-  static const _heroMeta = Color(0xFFD9F99D);
   static const _border = Color(0xFFE2E8F0);
   static const _chipBg = Color(0xFFF7FEE7);
 
@@ -244,18 +242,18 @@ class _GenerateHero extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(22, 24, 22, 22),
       decoration: BoxDecoration(
-        color: _LibraryPageState._hero,
-        borderRadius: BorderRadius.circular(24),
+        gradient: AppColors.heroGradient,
+        borderRadius: BorderRadius.circular(28),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             '手动再生成',
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w500,
-              color: _LibraryPageState._heroLabel,
+              color: Colors.white.withValues(alpha: 0.92),
             ),
           ),
           const SizedBox(height: 12),
@@ -271,24 +269,25 @@ class _GenerateHero extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             hint,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
-              color: _LibraryPageState._heroMeta,
+              color: Colors.white.withValues(alpha: 0.88),
               height: 18 / 13,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
-            height: 46,
+            height: 48,
             child: FilledButton(
               onPressed: enabled ? onGenerate : null,
               style: FilledButton.styleFrom(
                 backgroundColor: Colors.white,
-                disabledBackgroundColor: const Color(0xFFD9F99D),
-                foregroundColor: _LibraryPageState._hero,
+                disabledBackgroundColor: Colors.white.withValues(alpha: 0.55),
+                foregroundColor: AppColors.accent,
+                disabledForegroundColor: AppColors.accent.withValues(alpha: 0.45),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(999),
                 ),
               ),
               child: Text(

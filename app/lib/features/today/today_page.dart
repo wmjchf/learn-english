@@ -28,9 +28,6 @@ class _TodayPageState extends State<TodayPage> {
   static const _text = Color(0xFF0F172A);
   static const _meta = Color(0xFF64748B);
   static const _metaLight = Color(0xFF94A3B8);
-  static const _hero = Color(0xFF365314);
-  static const _heroLabel = Color(0xFFBEF264);
-  static const _heroMeta = Color(0xFFD9F99D);
 
   @override
   void initState() {
@@ -462,18 +459,18 @@ class _HeroCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(22, 28, 22, 24),
       decoration: BoxDecoration(
-        color: _TodayPageState._hero,
-        borderRadius: BorderRadius.circular(24),
+        gradient: AppColors.heroGradient,
+        borderRadius: BorderRadius.circular(28),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             lesson.isPersonalized ? '今天的文章 · AI 定制' : '今天的文章',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w500,
-              color: _TodayPageState._heroLabel,
+              color: Colors.white.withValues(alpha: 0.92),
             ),
           ),
           const SizedBox(height: 14),
@@ -489,23 +486,23 @@ class _HeroCard extends StatelessWidget {
           const SizedBox(height: 14),
           Text(
             lesson.metaLine,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
-              color: _TodayPageState._heroMeta,
+              color: Colors.white.withValues(alpha: 0.88),
               height: 20 / 13,
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 18),
           SizedBox(
             width: double.infinity,
-            height: 46,
+            height: 48,
             child: FilledButton(
               onPressed: onStart,
               style: FilledButton.styleFrom(
                 backgroundColor: Colors.white,
-                foregroundColor: _TodayPageState._hero,
+                foregroundColor: AppColors.accent,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(999),
                 ),
               ),
               child: Text(
@@ -513,6 +510,7 @@ class _HeroCard extends StatelessWidget {
                 style: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
+                  color: AppColors.accent,
                 ),
               ),
             ),

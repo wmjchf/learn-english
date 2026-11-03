@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:app_starter/core/network/api_client.dart';
+import 'package:app_starter/core/theme/app_colors.dart';
 import 'package:app_starter/features/lesson/lesson_article_page.dart';
 import 'package:app_starter/features/lesson/lesson_repository.dart';
 import 'package:app_starter/features/vocab/review_page.dart';
@@ -29,9 +30,6 @@ class _VocabPageState extends State<VocabPage> {
   static const _meta = Color(0xFF94A3B8);
   static const _blue = Color(0xFF7AC70C);
   static const _blueSoft = Color(0xFFF7FEE7);
-  static const _hero = Color(0xFF365314);
-  static const _heroLabel = Color(0xFFBEF264);
-  static const _heroMeta = Color(0xFFD9F99D);
   static const _border = Color(0xFFE2E8F0);
 
   @override
@@ -211,18 +209,18 @@ class _DueHero extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(22, 24, 22, 22),
       decoration: BoxDecoration(
-        color: _VocabPageState._hero,
-        borderRadius: BorderRadius.circular(24),
+        gradient: AppColors.heroGradient,
+        borderRadius: BorderRadius.circular(28),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             '今日到期',
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w500,
-              color: _VocabPageState._heroLabel,
+              color: Colors.white.withValues(alpha: 0.92),
             ),
           ),
           const SizedBox(height: 12),
@@ -238,24 +236,24 @@ class _DueHero extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             due.subtitle,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
-              color: _VocabPageState._heroMeta,
+              color: Colors.white.withValues(alpha: 0.88),
               height: 18 / 13,
             ),
           ),
           if (due.ctaLabel != null) ...[
-            const SizedBox(height: 14),
+            const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
-              height: 46,
+              height: 48,
               child: FilledButton(
                 onPressed: onStart,
                 style: FilledButton.styleFrom(
                   backgroundColor: Colors.white,
-                  foregroundColor: _VocabPageState._hero,
+                  foregroundColor: AppColors.accent,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(999),
                   ),
                 ),
                 child: Text(
@@ -263,6 +261,7 @@ class _DueHero extends StatelessWidget {
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
+                    color: AppColors.accent,
                   ),
                 ),
               ),
