@@ -26,12 +26,34 @@ app.use(express.static(publicDir));
 
 app.get('/', (_req, res) => {
   res.type('html').send(`<!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><title>词成文 API</title></head>
-<body style="font-family:system-ui;padding:2rem">
-  <h1>词成文 API</h1>
-  <p>Health: <a href="/api/health">/api/health</a></p>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>有戏单词</title></head>
+<body style="font-family:system-ui;padding:2rem;line-height:1.6">
+  <h1>有戏单词</h1>
+  <p>API 健康检查：<a href="/api/health">/api/health</a></p>
+  <p><a href="/support">用户支持</a> · <a href="/privacy">隐私政策</a> · <a href="/terms">用户协议</a></p>
 </body></html>`);
 });
+
+const sendSupport = (_req, res) => {
+  res.sendFile(path.join(publicDir, 'support.html'));
+};
+app.get('/support', sendSupport);
+app.get('/support.html', sendSupport);
+
+const sendPrivacy = (_req, res) => {
+  res.sendFile(path.join(publicDir, 'privacy.html'));
+};
+app.get('/privacy', sendPrivacy);
+app.get('/privacy-policy', sendPrivacy);
+app.get('/privacy.html', sendPrivacy);
+
+const sendTerms = (_req, res) => {
+  res.sendFile(path.join(publicDir, 'terms.html'));
+};
+app.get('/terms', sendTerms);
+app.get('/terms-of-use', sendTerms);
+app.get('/eula', sendTerms);
+app.get('/terms.html', sendTerms);
 
 app.use('/api', healthRouter);
 app.use('/api/auth', authRouter);
