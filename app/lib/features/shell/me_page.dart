@@ -140,7 +140,7 @@ class _MePageState extends State<MePage> {
                 TextButton(
                   onPressed: () {
                     Navigator.of(ctx).pop();
-                    AppToast.show(context, '注销账号即将接入');
+                    _confirmDeleteAccount();
                   },
                   child: const Text(
                     '注销账号',
@@ -153,6 +153,48 @@ class _MePageState extends State<MePage> {
         );
       },
     );
+  }
+
+  Future<void> _confirmDeleteAccount() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('注销账号？'),
+          content: const Text(
+            '将永久删除账号、学习画像、日课、生词与登录信息，且无法恢复。同一手机号之后可重新注册。\n\n若仅换设备，请选择「退出登录」。',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              style: TextButton.styleFrom(foregroundColor: const Color(0xFFDC2626)),
+              child: const Text('注销'),
+            ),
+          ],
+        );
+      },
+    );
+    if (ok != true || !mounted) return;
+
+    try {
+      await _auth.deleteAccount();
+      if (!mounted) return;
+      AppToast.show(context, '账号已注销');
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute<void>(builder: (_) => const GuidePage()),
+        (_) => false,
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      AppToast.show(context, e.message);
+    } catch (_) {
+      if (!mounted) return;
+      AppToast.show(context, '注销失败，请稍后重试');
+    }
   }
 
   Future<void> _logout() async {

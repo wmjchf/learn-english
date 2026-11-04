@@ -123,6 +123,20 @@ class AuthRepository {
     await clearSession();
   }
 
+  /// 注销账号：服务端删除用户及学习数据后清本地登录态。
+  Future<void> deleteAccount() async {
+    final session = await readSession();
+    if (session == null) {
+      throw ApiException('未登录', statusCode: 401);
+    }
+    await _api.delete(
+      '/api/auth/account',
+      accessToken: session.accessToken,
+      authed: true,
+    );
+    await clearSession();
+  }
+
   static Future<String?> tryRefreshAccessToken() {
     return _refreshInFlight ??= _refreshAccessTokenOnce().whenComplete(() {
       _refreshInFlight = null;
