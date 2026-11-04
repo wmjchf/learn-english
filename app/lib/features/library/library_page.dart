@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:app_starter/core/network/api_client.dart';
 import 'package:app_starter/core/theme/app_colors.dart';
 import 'package:app_starter/core/ui/app_toast.dart';
-import 'package:app_starter/core/ui/blocking_overlay.dart';
 import 'package:app_starter/features/library/library_models.dart';
 import 'package:app_starter/features/library/library_repository.dart';
 import 'package:app_starter/features/lesson/lesson_article_page.dart';
 import 'package:app_starter/features/lesson/lesson_repository.dart';
+import 'package:app_starter/features/shell/app_navigator.dart';
 
 /// 文章库 Tab：对齐 Figma Phone/文章库。
 class LibraryPage extends StatefulWidget {
@@ -82,40 +82,53 @@ class _LibraryPageState extends State<LibraryPage> {
     }
   }
 
+  void _toast(String message, {String? actionLabel, VoidCallback? onAction}) {
+    final ctx = AppNavigator.key.currentContext ?? context;
+    AppToast.show(
+      ctx,
+      message,
+      actionLabel: actionLabel,
+      onAction: onAction,
+    );
+  }
+
   Future<void> _generate() async {
     if (_generating) return;
     final quota = _data?.quota;
     if (quota != null && !quota.canGenerateFree) {
-      AppToast.show(context, quota.hint);
+      _toast(quota.hint);
       return;
     }
 
     setState(() => _generating = true);
     try {
-      final result = await BlockingOverlay.run(
-        context,
-        child: const _GeneratingCard(),
-        task: () => _repo.generate(),
+      // 后台生成：不挡操作，顶栏徽章提示；完成后 toast
+      final result = await _repo.generate();
+      if (!mounted) return;
+      setState(() {
+        _generating = false;
+        _filter = 'all';
+      });
+      await _load();
+      if (!mounted) return;
+      final lesson = result.lesson;
+      _toast(
+        '已生成完成',
+        actionLabel: '去看',
+        onAction: () {
+          final nav = AppNavigator.key.currentState;
+          if (nav == null) return;
+          nav.push(
+            MaterialPageRoute<void>(
+              builder: (_) => LessonArticlePage(lesson: lesson),
+            ),
+          );
+        },
       );
-      if (!mounted || result == null) return;
-      AppToast.show(context, '新文章已生成');
-      await Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => LessonArticlePage(lesson: result.lesson),
-        ),
-      );
-      if (mounted) {
-        setState(() => _filter = 'all');
-        await _load();
-      }
     } catch (e) {
       if (!mounted) return;
-      AppToast.show(
-        context,
-        e is ApiException ? e.message : '生成失败',
-      );
-    } finally {
-      if (mounted) setState(() => _generating = false);
+      setState(() => _generating = false);
+      _toast(e is ApiException ? e.message : '生成失败');
     }
   }
 
@@ -150,14 +163,25 @@ class _LibraryPageState extends State<LibraryPage> {
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
                       children: [
-                        const Text(
-                          '文章库',
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.w700,
-                            color: _text,
-                            height: 34 / 28,
-                          ),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                '文章库',
+                                style: TextStyle(
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.w700,
+                                  color: _text,
+                                  height: 34 / 28,
+                                ),
+                              ),
+                            ),
+                            if (_generating) ...[
+                              const SizedBox(width: 12),
+                              const _GeneratingBadge(),
+                            ],
+                          ],
                         ),
                         const SizedBox(height: 8),
                         const Text(
@@ -170,10 +194,13 @@ class _LibraryPageState extends State<LibraryPage> {
                         ),
                         const SizedBox(height: 20),
                         _GenerateHero(
-                          hint: _data?.quota.hint ??
-                              '今天还可免费生成 1 次，之后需付费。',
-                          enabled: !_generating &&
-                              (_data?.quota.canGenerateFree ?? true),
+                          hint: _generating
+                              ? '正在后台生成，可先去别处逛逛…'
+                              : (_data?.quota.hint ??
+                                  '今天还可免费生成 1 次'),
+                          generating: _generating,
+                          canGenerate:
+                              _data?.quota.canGenerateFree ?? true,
                           onGenerate: _generate,
                         ),
                         const SizedBox(height: 20),
@@ -228,16 +255,23 @@ class _LibraryPageState extends State<LibraryPage> {
 class _GenerateHero extends StatelessWidget {
   const _GenerateHero({
     required this.hint,
-    required this.enabled,
+    required this.generating,
+    required this.canGenerate,
     required this.onGenerate,
   });
 
   final String hint;
-  final bool enabled;
+  final bool generating;
+  final bool canGenerate;
   final VoidCallback onGenerate;
 
   @override
   Widget build(BuildContext context) {
+    final enabled = !generating && canGenerate;
+    final label = generating
+        ? '生成中…'
+        : (canGenerate ? '生成新文章' : '今日免费已用完');
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(22, 24, 22, 22),
@@ -285,13 +319,14 @@ class _GenerateHero extends StatelessWidget {
                 backgroundColor: Colors.white,
                 disabledBackgroundColor: Colors.white.withValues(alpha: 0.55),
                 foregroundColor: AppColors.accent,
-                disabledForegroundColor: AppColors.accent.withValues(alpha: 0.45),
+                disabledForegroundColor:
+                    AppColors.accent.withValues(alpha: 0.45),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(999),
                 ),
               ),
               child: Text(
-                enabled ? '生成新文章' : '今日免费已用完',
+                label,
                 style: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
@@ -429,37 +464,45 @@ class _LessonRow extends StatelessWidget {
   }
 }
 
-class _GeneratingCard extends StatelessWidget {
-  const _GeneratingCard();
+/// 标题右侧非阻断提示：生成中可继续操作其它 Tab / 列表。
+class _GeneratingBadge extends StatelessWidget {
+  const _GeneratingBadge();
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 40),
-      padding: const EdgeInsets.fromLTRB(24, 28, 24, 28),
+      padding: const EdgeInsets.fromLTRB(10, 8, 12, 8),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primaryBorder),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      child: const Column(
+      child: const Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          CircularProgressIndicator(strokeWidth: 2.4),
-          SizedBox(height: 16),
-          Text(
-            '正在生成新文章…',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF0F172A),
+          SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: AppColors.primary,
             ),
           ),
-          SizedBox(height: 8),
+          SizedBox(width: 8),
           Text(
-            '大约需要一两分钟',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+            '生成中…',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: _LibraryPageState._text,
+            ),
           ),
         ],
       ),

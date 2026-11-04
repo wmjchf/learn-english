@@ -45,8 +45,10 @@ flutter run
 # flutter run --dart-define=API_ENV=local
 # 连测试服 http://47.97.67.47:3003 ：
 # flutter run --dart-define=API_ENV=test
+# 连生产 https://wordx.wobufang.com ：
+# flutter run --dart-define=API_ENV=prod
 # 或任意地址：
-# flutter run --dart-define=API_BASE_URL=http://47.97.67.47:3003
+# flutter run --dart-define=API_BASE_URL=https://wordx.wobufang.com
 ```
 
 底部四个 Tab：今日、文章库、生词本、我的。阅读与闭眼回填从今日或文章库进入，不占 Tab。

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:app_starter/core/config/api_config.dart';
 import 'package:app_starter/core/config/app_brand.dart';
 import 'package:app_starter/core/network/api_client.dart';
 import 'package:app_starter/core/ui/app_toast.dart';
@@ -56,8 +57,12 @@ class _LoginPageState extends State<LoginPage> {
 
     setState(() => _sending = true);
     try {
-      await _auth.sendCode(phone);
-      _toast('验证码已发送（开发模式默认 123456）');
+      final sent = await _auth.sendCode(phone);
+      _toast(
+        sent.devMode
+            ? '验证码已发送（开发模式默认 123456）'
+            : (sent.message.isNotEmpty ? sent.message : '验证码已发送'),
+      );
       _startCountdown();
     } on ApiException catch (e) {
       _toast(e.message);
@@ -263,11 +268,13 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ),
               const Spacer(),
-              const Text(
-                '开发环境验证码：123456',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
-              ),
+              // 仅非生产包展示；能否用 123456 仍取决于服务端 SMS_DEV_MODE
+              if (!ApiConfig.isProd)
+                const Text(
+                  '开发环境验证码：123456',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                ),
             ],
           ),
         ),

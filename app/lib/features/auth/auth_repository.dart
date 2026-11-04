@@ -42,13 +42,17 @@ class AuthRepository {
   static Future<String?>? _refreshInFlight;
   static bool _handlingExpiry = false;
 
-  Future<String> sendCode(String phone) async {
+  /// 返回发送结果；[devMode] 为服务端 `SMS_DEV_MODE`，用于决定是否提示固定验证码。
+  Future<({String message, bool devMode})> sendCode(String phone) async {
     final json = await _api.post(
       '/api/auth/sms/send',
       body: {'phone': phone},
       skipAuthRefresh: true,
     );
-    return (json['message'] as String?) ?? '验证码已发送';
+    return (
+      message: (json['message'] as String?) ?? '验证码已发送',
+      devMode: json['devMode'] == true,
+    );
   }
 
   Future<LoginResult> login({

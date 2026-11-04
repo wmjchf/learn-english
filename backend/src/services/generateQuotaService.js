@@ -36,8 +36,8 @@ async function getQuota(userId) {
     canGenerateFree: remaining > 0,
     hint:
       remaining > 0
-        ? `今天还可免费生成 ${remaining} 次，之后需付费。`
-        : '今日免费次数已用完，付费生成即将开放。',
+        ? `今天还可免费生成 ${remaining} 次`
+        : '今日免费次数已用完',
   };
 }
 
