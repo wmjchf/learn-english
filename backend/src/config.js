@@ -15,7 +15,8 @@ module.exports = {
     refreshExpiresDays: Number(process.env.REFRESH_EXPIRES_DAYS) || 30,
     smsDevMode: process.env.SMS_DEV_MODE !== 'false',
     smsDevCode: process.env.SMS_DEV_CODE || '123456',
-    smsReviewPhone: process.env.SMS_REVIEW_PHONE || '',
+    // 审核/特殊登录白名单：该号不发短信，固定码 smsReviewCode（对齐 collection-app）
+    smsReviewPhone: process.env.SMS_REVIEW_PHONE || '15868843247',
     smsReviewCode: process.env.SMS_REVIEW_CODE || '888888',
   },
   aliyun: {
