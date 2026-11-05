@@ -77,16 +77,17 @@ function buildPrompt({
 - 先列好要用到的目标词再写故事，再写 theme/title
 - theme 与故事必须是新事件，不得与近期日课雷同
 - 主题/场景导读/短文/对话必须明显贴合职业「${jobLabel}」与场景「${sceneLine}」（兴趣可作点缀：${interestLine}）；禁止写成与当前画像无关的通用职场鸡汤
+- 中译必须忠实：zhPlain / turns[].zh 是对英文的完整翻译，禁止摘要、改写剧情、用导读顶替；长度应覆盖原文信息点
 
 字段：
 theme(中文标题 4-10 字：必须概括本篇短文的具体事件/话题，且能看出职业或场景；内容不同则 theme 必须不同；禁止「今日职场」「商务英语」「职场沟通」等空泛词),
 title(英文短标题，同样要具体、贴合本篇内容与画像),
 scene:{roleBackground(中文1-2句，点明身份与场景),tasks[3]},
-article:{title(可贴合短文的英文题),zhTitle(title的中文译名，4-12字，具体),zhLead(中文≤40字，点出本篇具体事),enPlain(英文55-80词，自然写入目标词),zhPlain(enPlain的完整中文翻译；目标词对应的中文必须用【】包住，如【搬迁】；勿翻译成词表)},
-dialog:{zhTitle(对话英文题的中文译名),zhLead(中文≤30字场景概要，不是台词翻译),turns:[{who,en,zh}] 恰好3轮；zh必须是对本轮 en 的忠实中文翻译（勿写成剧情摘要）；目标词对应中文用【】包住；对话里也可写入剩余目标词},
+article:{title(可贴合短文的英文题),zhTitle(title的中文译名，4-12字，具体),zhLead(中文≤40字，只作导读/摘要，不是全文翻译),enPlain(英文55-80词，自然写入目标词),zhPlain(必须是 enPlain 的完整忠实中文翻译，一句不漏；禁止照搬 zhLead；目标词对应中文用【】包住，如【搬迁】；勿做成词表)},
+dialog:{zhTitle(对话英文题的中文译名),zhLead(中文≤30字场景概要，不是台词翻译),turns:[{who,en,zh}] 恰好3轮；每轮 zh 必须是对本轮 en 的忠实中文翻译（勿写成剧情摘要，勿复制 zhLead）；目标词对应中文用【】包住；对话里也可写入剩余目标词},
 cloze:[{sentence含________,hintZh,answer,before,after}] 恰好8题；answer∈目标词且互不重复
 
-难度贴合 ${level}；职场自然；禁止只列单词；先想清本篇具体故事再写 theme/title；dialog.turns[].zh 严禁用导读代替逐句翻译。`;
+难度贴合 ${level}；职场自然；禁止只列单词；先想清本篇具体故事再写 theme/title；写完英文后务必另写完整中译，dialog.turns[].zh 严禁用导读代替。`;
 }
 
 const GENERIC_THEMES = new Set([
@@ -139,9 +140,9 @@ function normalizeLesson(raw, { targetLemmas, reviewLemmas = [], level, dayIndex
 
   const articlePlain = asString(raw.article?.enPlain || raw.article?.en_plain);
   const zhLead = asString(raw.article?.zhLead || raw.article?.zh_lead);
+  // 勿用 zhLead 顶替 zhPlain：导读当译文会造成「翻译不准」
   let zhPlain = asString(raw.article?.zhPlain || raw.article?.zh_plain);
-  // 模型偶发漏写完整译文：用导读兜底
-  if (!zhPlain && zhLead) zhPlain = zhLead;
+  if (zhPlain && zhLead && zhPlain === zhLead) zhPlain = '';
   const theme = refineTheme(raw.theme, zhLead || zhPlain);
   const articleTitle = asString(raw.article?.title, title);
   let zhTitle = asString(raw.article?.zhTitle || raw.article?.zh_title);
@@ -262,6 +263,114 @@ function ensureTargetCoverage(lesson) {
   return coverageScore(corpusOf(), targets);
 }
 
+function countCjk(text) {
+  return (asString(text).match(/[\u4e00-\u9fff]/g) || []).length;
+}
+
+function enWordCount(text) {
+  return asString(text)
+    .split(/\s+/)
+    .filter(Boolean).length;
+}
+
+/** 短文中译是否像完整翻译（而非导读） */
+function isFaithfulArticleZh(lesson) {
+  const en = asString(lesson.article?.enPlain);
+  const zh = asString(lesson.article?.zhPlain);
+  const lead = asString(lesson.article?.zhLead);
+  if (!en || !zh) return false;
+  if (lead && zh === lead) return false;
+  const words = enWordCount(en);
+  const cjk = countCjk(zh);
+  // 英文约 55–80 词时，完整中译通常远长于导读（导读≤40字）
+  if (cjk < Math.max(36, Math.floor(words * 0.7))) return false;
+  if (lead && cjk <= countCjk(lead) + 8) return false;
+  return true;
+}
+
+function isFaithfulTurnZh(turn, lesson) {
+  const en = asString(turn?.en);
+  const zh = asString(turn?.zh);
+  if (!en || !zh) return false;
+  const leadA = asString(lesson.article?.zhLead);
+  const leadD = asString(lesson.dialog?.zhLead);
+  if (leadA && zh === leadA) return false;
+  if (leadD && zh === leadD) return false;
+  const words = enWordCount(en);
+  const cjk = countCjk(zh);
+  if (cjk < Math.max(4, Math.floor(words * 0.5))) return false;
+  return true;
+}
+
+/**
+ * 译文不合格时单独再译一轮（只出中文，不改英文故事）。
+ */
+async function ensureFaithfulTranslations(lesson) {
+  const needArticle = !isFaithfulArticleZh(lesson);
+  const turnIdx = [];
+  (lesson.dialog?.turns || []).forEach((t, i) => {
+    if (!isFaithfulTurnZh(t, lesson)) turnIdx.push(i);
+  });
+  if (!needArticle && !turnIdx.length) return { fixed: false };
+
+  const targets = (lesson.targetLemmas || []).join(', ');
+  const turnBlock = turnIdx
+    .map((i) => {
+      const t = lesson.dialog.turns[i];
+      return `- index ${i} | ${t.who}: ${t.en}`;
+    })
+    .join('\n');
+
+  const userParts = [
+    '只做忠实中文翻译。禁止摘要、禁止改写剧情、禁止用导读代替。',
+    '目标词对应的中文请用【】包住。',
+    targets ? `目标词：${targets}` : '',
+    needArticle
+      ? `短文英文 enPlain：\n${lesson.article.enPlain}\n请输出完整中译到 zhPlain。`
+      : '',
+    turnIdx.length
+      ? `对话需重译的轮次：\n${turnBlock}\n每轮输出对应 index 的 zh。`
+      : '',
+    '返回 JSON：{"zhPlain":"...仅当需要短文翻译时...","turns":[{"index":0,"zh":"..."}]}',
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+
+  const result = await chatCompletion({
+    messages: [
+      {
+        role: 'system',
+        content: 'You are a careful EN→ZH translator. Return one JSON object only.',
+      },
+      { role: 'user', content: userParts },
+    ],
+    temperature: 0.2,
+    maxTokens: 1200,
+    jsonMode: true,
+  });
+
+  const raw = parseJsonContent(result.content);
+  let fixed = false;
+  if (needArticle) {
+    const zh = asString(raw.zhPlain || raw.zh_plain);
+    if (zh && (!lesson.article.zhLead || zh !== lesson.article.zhLead)) {
+      lesson.article.zhPlain = zh;
+      fixed = true;
+    }
+  }
+  for (const row of asArray(raw.turns)) {
+    const i = Number(row.index ?? row.i);
+    const zh = asString(row.zh);
+    if (!Number.isInteger(i) || i < 0 || i >= (lesson.dialog?.turns?.length || 0)) {
+      continue;
+    }
+    if (!zh) continue;
+    lesson.dialog.turns[i].zh = zh;
+    fixed = true;
+  }
+  return { fixed, latencyMs: result.latencyMs, model: result.model };
+}
+
 function validateLesson(lesson, { avoidThemes = [] } = {}) {
   const errors = [];
   if (!lesson.article?.enPlain || lesson.article.enPlain.split(/\s+/).length < 25) {
@@ -272,6 +381,13 @@ function validateLesson(lesson, { avoidThemes = [] } = {}) {
   const turnsMissingZh = dialogTurns.filter((t) => !asString(t.zh)).length;
   if (dialogTurns.length && turnsMissingZh > 0) {
     errors.push(`对话缺逐句中译 ${turnsMissingZh}/${dialogTurns.length} 轮`);
+  }
+  if (!isFaithfulArticleZh(lesson)) {
+    errors.push('短文中译缺失或不像完整翻译（疑似导读顶替）');
+  }
+  const weakTurns = dialogTurns.filter((t) => !isFaithfulTurnZh(t, lesson)).length;
+  if (dialogTurns.length && weakTurns > 0) {
+    errors.push(`对话中译不忠实 ${weakTurns}/${dialogTurns.length} 轮`);
   }
   if (!lesson.cloze || lesson.cloze.length < 8) {
     errors.push(`回填不足 8 题（现 ${lesson.cloze?.length || 0}）`);
@@ -330,6 +446,18 @@ async function generateOnce(ctx) {
     dayIndex: ctx.dayIndex,
   });
   ensureTargetCoverage(lesson);
+  let translateMs = 0;
+  try {
+    const tr = await ensureFaithfulTranslations(lesson);
+    if (tr.fixed) {
+      translateMs = tr.latencyMs || 0;
+      console.log(
+        `[lesson] re-translate ok day=${ctx.dayIndex} llm=${translateMs}ms model=${tr.model || '?'}`,
+      );
+    }
+  } catch (err) {
+    console.warn('[lesson] re-translate failed:', err.message);
+  }
   const check = validateLesson(lesson, {
     avoidThemes: ctx.avoidThemes || [],
   });
@@ -338,7 +466,7 @@ async function generateOnce(ctx) {
     check,
     usage: result.usage,
     model: result.model,
-    latencyMs: result.latencyMs,
+    latencyMs: (result.latencyMs || 0) + translateMs,
   };
 }
 
