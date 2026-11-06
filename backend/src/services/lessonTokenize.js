@@ -4,6 +4,16 @@ function cleanLemma(surface) {
     .replace(/[^a-z'-]/g, '');
 }
 
+/** 去掉模型偶发的 Markdown 强调（**word** / *word*），避免界面露出星号 */
+function stripMarkdownEmphasis(text) {
+  return String(text || '')
+    .replace(/\*\*\s*([^*]+?)\s*\*\*/g, '$1')
+    .replace(/(^|[^\w*])\*\s*([^*]+?)\s*\*(?=[^\w*]|$)/g, '$1$2')
+    .replace(/\*{1,2}/g, '')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
+}
+
 function isTargetLemma(lemma, targetSet) {
   if (!lemma) return false;
   if (targetSet.has(lemma)) return true;
@@ -31,10 +41,11 @@ function tokenizeEnglish(text, targetLemmas = [], reviewLemmas = []) {
   const reviewSet = new Set(
     (reviewLemmas || []).map((t) => cleanLemma(t)).filter(Boolean),
   );
-  const parts = String(text || '').match(/[A-Za-z']+|[^\sA-Za-z']+/g) || [];
+  const cleaned = stripMarkdownEmphasis(text);
+  const parts = cleaned.match(/[A-Za-z']+|[^\sA-Za-z']+/g) || [];
   return parts
     .map((surface) => surface.trim())
-    .filter(Boolean)
+    .filter((surface) => surface && !/^\*+$/.test(surface))
     .map((surface) => {
       const lemma = cleanLemma(surface);
       const isTarget = isTargetLemma(lemma, targetSet);
@@ -70,6 +81,7 @@ function coverageScore(text, targetLemmas) {
 
 module.exports = {
   cleanLemma,
+  stripMarkdownEmphasis,
   tokenizeEnglish,
   coverageScore,
 };

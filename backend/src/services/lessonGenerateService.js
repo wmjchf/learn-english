@@ -1,6 +1,11 @@
 const config = require('../config');
 const { chatCompletion, parseJsonContent } = require('./llmClient');
-const { tokenizeEnglish, coverageScore, cleanLemma } = require('./lessonTokenize');
+const {
+  tokenizeEnglish,
+  coverageScore,
+  cleanLemma,
+  stripMarkdownEmphasis,
+} = require('./lessonTokenize');
 const profileService = require('./profileService');
 const planService = require('./planService');
 const bankService = require('./bankService');
@@ -78,13 +83,14 @@ function buildPrompt({
 - theme 与故事必须是新事件，不得与近期日课雷同
 - 主题/场景导读/短文/对话必须明显贴合职业「${jobLabel}」与场景「${sceneLine}」（兴趣可作点缀：${interestLine}）；禁止写成与当前画像无关的通用职场鸡汤
 - 中译必须忠实：zhPlain / turns[].zh 是对英文的完整翻译，禁止摘要、改写剧情、用导读顶替；长度应覆盖原文信息点
+- 英文正文禁止 Markdown：不要用 **word** 或 *word* 包目标词（App 会自行高亮）
 
 字段：
 theme(中文标题 4-10 字：必须概括本篇短文的具体事件/话题，且能看出职业或场景；内容不同则 theme 必须不同；禁止「今日职场」「商务英语」「职场沟通」等空泛词),
 title(英文短标题，同样要具体、贴合本篇内容与画像),
 scene:{roleBackground(中文1-2句，点明身份与场景),tasks[3]},
-article:{title(可贴合短文的英文题),zhTitle(title的中文译名，4-12字，具体),zhLead(中文≤40字，只作导读/摘要，不是全文翻译),enPlain(英文55-80词，自然写入目标词),zhPlain(必须是 enPlain 的完整忠实中文翻译，一句不漏；禁止照搬 zhLead；目标词对应中文用【】包住，如【搬迁】；勿做成词表)},
-dialog:{zhTitle(对话英文题的中文译名),zhLead(中文≤30字场景概要，不是台词翻译),turns:[{who,en,zh}] 恰好3轮；每轮 zh 必须是对本轮 en 的忠实中文翻译（勿写成剧情摘要，勿复制 zhLead）；目标词对应中文用【】包住；对话里也可写入剩余目标词},
+article:{title(可贴合短文的英文题),zhTitle(title的中文译名，4-12字，具体),zhLead(中文≤40字，只作导读/摘要，不是全文翻译),enPlain(英文55-80词，自然写入目标词；纯文本勿加**),zhPlain(必须是 enPlain 的完整忠实中文翻译，一句不漏；禁止照搬 zhLead；目标词对应中文用【】包住，如【搬迁】；勿做成词表)},
+dialog:{zhTitle(对话英文题的中文译名),zhLead(中文≤30字场景概要，不是台词翻译),turns:[{who,en,zh}] 恰好3轮；en 纯文本勿加**；每轮 zh 必须是对本轮 en 的忠实中文翻译（勿写成剧情摘要，勿复制 zhLead）；目标词对应中文用【】包住；对话里也可写入剩余目标词},
 cloze:[{sentence含________,hintZh,answer,before,after}] 恰好8题；answer∈目标词且互不重复
 
 难度贴合 ${level}；职场自然；禁止只列单词；先想清本篇具体故事再写 theme/title；写完英文后务必另写完整中译，dialog.turns[].zh 严禁用导读代替。`;
@@ -138,7 +144,9 @@ function normalizeLesson(raw, { targetLemmas, reviewLemmas = [], level, dayIndex
     scene.tasks = ['读懂今日短文', '听懂对话', '完成底部回填'];
   }
 
-  const articlePlain = asString(raw.article?.enPlain || raw.article?.en_plain);
+  const articlePlain = stripMarkdownEmphasis(
+    asString(raw.article?.enPlain || raw.article?.en_plain),
+  );
   const zhLead = asString(raw.article?.zhLead || raw.article?.zh_lead);
   // 勿用 zhLead 顶替 zhPlain：导读当译文会造成「翻译不准」
   let zhPlain = asString(raw.article?.zhPlain || raw.article?.zh_plain);
@@ -159,7 +167,7 @@ function normalizeLesson(raw, { targetLemmas, reviewLemmas = [], level, dayIndex
 
   const turnsRaw = asArray(raw.dialog?.turns);
   const turns = turnsRaw.map((t) => {
-    const en = asString(t.en);
+    const en = stripMarkdownEmphasis(asString(t.en));
     return {
       who: asString(t.who, 'A'),
       en,
@@ -168,9 +176,10 @@ function normalizeLesson(raw, { targetLemmas, reviewLemmas = [], level, dayIndex
     };
   }).filter((t) => t.en);
 
-  const dialogPlain =
+  const dialogPlain = stripMarkdownEmphasis(
     asString(raw.dialog?.enPlain || raw.dialog?.en_plain) ||
-    turns.map((t) => `${t.who}: ${t.en}`).join(' ');
+      turns.map((t) => `${t.who}: ${t.en}`).join(' '),
+  );
   const dialogZhLead = asString(raw.dialog?.zhLead || raw.dialog?.zh_lead);
   let dialogZhTitle = asString(raw.dialog?.zhTitle || raw.dialog?.zh_title);
 

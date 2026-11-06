@@ -21,6 +21,41 @@ class LessonToken {
   }
 }
 
+/// 去掉模型偶发的 Markdown 加粗星号（旧课也会修）。
+String stripMarkdownEmphasis(String text) {
+  var s = text
+      .replaceAllMapped(
+        RegExp(r'\*\*\s*([^*]+?)\s*\*\*'),
+        (m) => m.group(1) ?? '',
+      )
+      .replaceAllMapped(
+        RegExp(r'(^|[^\w*])\*\s*([^*]+?)\s*\*(?=[^\w*]|$)'),
+        (m) => '${m.group(1) ?? ''}${m.group(2) ?? ''}',
+      )
+      .replaceAll(RegExp(r'\*{1,2}'), '');
+  s = s.replaceAll(RegExp(r'[ \t]{2,}'), ' ').trim();
+  return s;
+}
+
+List<LessonToken> sanitizeLessonTokens(List<LessonToken> tokens) {
+  final out = <LessonToken>[];
+  for (final t in tokens) {
+    final surface = t.surface.replaceAll(RegExp(r'\*+'), '').trim();
+    if (surface.isEmpty || RegExp(r'^\*+$').hasMatch(t.surface)) continue;
+    if (surface == t.surface) {
+      out.add(t);
+    } else {
+      out.add(LessonToken(
+        surface: surface,
+        lemma: t.lemma.replaceAll(RegExp(r"[^a-zA-Z'\-]"), '').toLowerCase(),
+        isTarget: t.isTarget,
+        isReview: t.isReview,
+      ));
+    }
+  }
+  return out;
+}
+
 class LessonDef {
   const LessonDef({
     required this.gloss,
@@ -127,6 +162,14 @@ class LessonArticle {
 
   factory LessonArticle.fromJson(Map<String, dynamic>? json) {
     final raw = json?['enTokens'] ?? json?['en_tokens'];
+    final tokens = raw is List
+        ? sanitizeLessonTokens(
+            raw
+                .whereType<Map>()
+                .map((e) => LessonToken.fromJson(Map<String, dynamic>.from(e)))
+                .toList(),
+          )
+        : const <LessonToken>[];
     return LessonArticle(
       title: json?['title'] as String? ?? '',
       zhTitle:
@@ -134,13 +177,10 @@ class LessonArticle {
       zhLead: json?['zhLead'] as String? ?? json?['zh_lead'] as String? ?? '',
       zhPlain:
           json?['zhPlain'] as String? ?? json?['zh_plain'] as String? ?? '',
-      enPlain: json?['enPlain'] as String? ?? json?['en_plain'] as String? ?? '',
-      enTokens: raw is List
-          ? raw
-              .whereType<Map>()
-              .map((e) => LessonToken.fromJson(Map<String, dynamic>.from(e)))
-              .toList()
-          : const [],
+      enPlain: stripMarkdownEmphasis(
+        json?['enPlain'] as String? ?? json?['en_plain'] as String? ?? '',
+      ),
+      enTokens: tokens,
     );
   }
 }
@@ -161,16 +201,19 @@ class DialogTurn {
 
   factory DialogTurn.fromJson(Map<String, dynamic> json) {
     final raw = json['enTokens'] ?? json['en_tokens'];
+    final tokens = raw is List
+        ? sanitizeLessonTokens(
+            raw
+                .whereType<Map>()
+                .map((e) => LessonToken.fromJson(Map<String, dynamic>.from(e)))
+                .toList(),
+          )
+        : const <LessonToken>[];
     return DialogTurn(
       who: json['who'] as String? ?? '',
-      en: json['en'] as String? ?? '',
+      en: stripMarkdownEmphasis(json['en'] as String? ?? ''),
       zh: json['zh'] as String? ?? '',
-      enTokens: raw is List
-          ? raw
-              .whereType<Map>()
-              .map((e) => LessonToken.fromJson(Map<String, dynamic>.from(e)))
-              .toList()
-          : const [],
+      enTokens: tokens,
     );
   }
 }
@@ -207,7 +250,9 @@ class LessonDialog {
       zhTitle:
           json?['zhTitle'] as String? ?? json?['zh_title'] as String? ?? '',
       zhLead: json?['zhLead'] as String? ?? json?['zh_lead'] as String? ?? '',
-      enPlain: json?['enPlain'] as String? ?? json?['en_plain'] as String? ?? '',
+      enPlain: stripMarkdownEmphasis(
+        json?['enPlain'] as String? ?? json?['en_plain'] as String? ?? '',
+      ),
       turns: raw is List
           ? raw
               .whereType<Map>()
