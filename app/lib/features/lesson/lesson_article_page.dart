@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:app_starter/core/network/api_client.dart';
 import 'package:app_starter/core/ui/app_toast.dart';
-import 'package:app_starter/features/lesson/lesson_dialog_page.dart';
+import 'package:app_starter/features/lesson/lesson_cloze_page.dart';
 import 'package:app_starter/features/lesson/lesson_models.dart';
 import 'package:app_starter/features/lesson/lesson_repository.dart';
 import 'package:app_starter/features/lesson/lesson_tts.dart';
 import 'package:app_starter/features/lesson/word_repository.dart';
 import 'package:app_starter/features/lesson/widgets/lesson_generating_view.dart';
-import 'package:app_starter/features/lesson/widgets/lesson_listen_bar.dart';
 import 'package:app_starter/features/lesson/widgets/token_text.dart';
 import 'package:app_starter/features/lesson/widgets/word_sheet.dart';
+import 'package:app_starter/features/lesson/widgets/word_walkthrough_sheet.dart';
 import 'package:app_starter/features/lesson/widgets/zh_marked_text.dart';
 import 'package:app_starter/features/shell/main_shell.dart';
 
@@ -53,6 +53,11 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
     if (widget.focusLemma != null && widget.focusLemma!.trim().isNotEmpty)
       widget.focusLemma!.trim().toLowerCase(),
   };
+  final Map<String, GlobalKey> _lemmaKeys = {};
+  final _scrollController = ScrollController();
+  bool _walkingWords = false;
+  /// 过词时底部单词卡约占屏高比例（与 walkthrough maxHeight 对齐）
+  static const _walkSheetFraction = 0.58;
 
   static const _bg = Color(0xFFF5F6F8);
   static const _blue = Color(0xFF7AC70C);
@@ -73,12 +78,14 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
 
   @override
   void dispose() {
+    _scrollController.dispose();
     _tts.dispose();
     super.dispose();
   }
 
   Future<void> _boot() async {
     if (widget.lesson != null) {
+      _rebuildLemmaKeys(widget.lesson!);
       setState(() {
         _lesson = widget.lesson;
         _loading = false;
@@ -95,6 +102,7 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
         lesson = await _repo.today();
       }
       if (!mounted) return;
+      _rebuildLemmaKeys(lesson);
       setState(() {
         _lesson = lesson;
         _loading = false;
@@ -113,36 +121,105 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
     // 始终打 open：unread→reading，并同步目标词进「学习中」
     try {
       final next = await _repo.open(lesson.id);
-      if (mounted) setState(() => _lesson = next);
-    } catch (_) {}
-    _maybeJumpDialogForFocus(_lesson ?? lesson);
+      if (mounted) {
+        _rebuildLemmaKeys(next);
+        setState(() => _lesson = next);
+      }
+    } catch (_) {
+      _rebuildLemmaKeys(lesson);
+    }
   }
 
-  bool _lemmaInArticle(Lesson lesson, String lemma) {
-    final key = lemma.toLowerCase();
-    return lesson.content.article.enTokens
-        .any((t) => t.lemma.toLowerCase() == key);
-  }
-
-  bool _lemmaInDialog(Lesson lesson, String lemma) {
-    final key = lemma.toLowerCase();
-    for (final turn in lesson.content.dialog.turns) {
-      if (turn.enTokens.any((t) => t.lemma.toLowerCase() == key)) {
-        return true;
+  void _rebuildLemmaKeys(Lesson lesson) {
+    _lemmaKeys.clear();
+    for (final t in lesson.content.article.enTokens) {
+      final lemma = t.lemma.trim().toLowerCase();
+      if (lemma.isEmpty) continue;
+      if (t.isTarget || lesson.content.targetLemmas.any((e) => e.toLowerCase() == lemma)) {
+        _lemmaKeys.putIfAbsent(lemma, GlobalKey.new);
       }
     }
-    return false;
+    for (final raw in lesson.content.targetLemmas) {
+      final lemma = raw.trim().toLowerCase();
+      if (lemma.isEmpty) continue;
+      _lemmaKeys.putIfAbsent(lemma, GlobalKey.new);
+    }
   }
 
-  /// 生词本跳转：词只在对话里时，自动进入对话页并高亮。
-  void _maybeJumpDialogForFocus(Lesson lesson) {
-    final focus = widget.focusLemma?.trim();
-    if (focus == null || focus.isEmpty) return;
-    if (_lemmaInArticle(lesson, focus)) return;
-    if (!_lemmaInDialog(lesson, focus)) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+  void _scrollToLemma(String lemma) {
+    final keyLemma = lemma.trim().toLowerCase();
+    if (keyLemma.isEmpty) return;
+    void apply() {
       if (!mounted) return;
-      _goDialog();
+      setState(() {
+        _walkingWords = true;
+        _zhExpanded = false;
+        _focus
+          ..clear()
+          ..add(keyLemma);
+      });
+      // 等场景/中译收起、focus 重建后再量位置强制滚动
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _forceScrollLemmaIntoPeek(keyLemma);
+        });
+      });
+    }
+
+    // 避开 bottom sheet 构建期同步 setState
+    WidgetsBinding.instance.addPostFrameCallback((_) => apply());
+  }
+
+  /// 把目标词滚进底部单词卡上方的可见带（红框区域）。
+  /// 不能只用 ensureVisible：词若已在整屏视口内（只是被 sheet 挡住）会不滚。
+  void _forceScrollLemmaIntoPeek(String keyLemma) {
+    if (!mounted || !_scrollController.hasClients) return;
+    final tokenCtx = _lemmaKeys[keyLemma]?.currentContext;
+    if (tokenCtx == null) return;
+
+    final tokenBox = tokenCtx.findRenderObject();
+    if (tokenBox is! RenderBox || !tokenBox.hasSize) return;
+
+    final media = MediaQuery.of(context);
+    final screenH = media.size.height;
+    // 单词卡上方可见带：词放在中间偏上，上下都能露出一句语境
+    final peekTop = media.padding.top + 12;
+    final peekBottom = screenH * (1 - _walkSheetFraction) - 8;
+    final peekH = (peekBottom - peekTop).clamp(80.0, screenH);
+    final desiredGlobalY = peekTop + peekH * 0.38;
+
+    final tokenTopGlobal = tokenBox.localToGlobal(Offset.zero).dy;
+    final tokenH = tokenBox.size.height;
+    final tokenBottomGlobal = tokenTopGlobal + tokenH;
+
+    // 已在可见带内且上下还有余量，就不动，避免滚太狠
+    final hasRoomAbove = tokenTopGlobal >= peekTop + 28;
+    final hasRoomBelow = tokenBottomGlobal <= peekBottom - 28;
+    if (hasRoomAbove && hasRoomBelow) return;
+
+    final delta = tokenTopGlobal - desiredGlobalY;
+    final target = (_scrollController.offset + delta)
+        .clamp(0.0, _scrollController.position.maxScrollExtent);
+
+    if ((target - _scrollController.offset).abs() < 2) return;
+
+    _scrollController.animateTo(
+      target,
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  void _endWalkthroughFocus() {
+    if (!mounted) return;
+    setState(() {
+      _walkingWords = false;
+      _focus
+        ..clear()
+        ..addAll({
+          if (widget.focusLemma != null && widget.focusLemma!.trim().isNotEmpty)
+            widget.focusLemma!.trim().toLowerCase(),
+        });
     });
   }
 
@@ -155,70 +232,90 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
       content: lesson.content,
       tts: _tts,
       lessonId: lesson.id,
-      onKnow: (lemma, {String? gloss}) async {
-        setState(() {
-          _known.add(lemma);
-          _tempHl.remove(lemma);
+      onKnow: _markKnow,
+      onUnknownHighlight: _markUnknown,
+    );
+  }
+
+  void _markKnow(String lemma, {String? gloss}) {
+    final lesson = _lesson;
+    if (lesson == null) return;
+    final key = lemma.trim().toLowerCase();
+    setState(() {
+      _known.add(key);
+      _tempHl.remove(key);
+    });
+    _words.markKnown(key, lessonId: lesson.id).catchError((Object e) {
+      if (mounted) {
+        AppToast.show(
+          context,
+          e is ApiException ? e.message : '标记失败',
+        );
+      }
+      return null;
+    });
+  }
+
+  void _markUnknown(String lemma, {String? gloss, bool toast = true}) {
+    final lesson = _lesson;
+    if (lesson == null) return;
+    final key = lemma.trim().toLowerCase();
+    setState(() {
+      _tempHl.add(key);
+    });
+    final resolved = (gloss != null && gloss.isNotEmpty)
+        ? gloss
+        : lesson.content.defFor(key)?.gloss;
+    _words
+        .markVocab(key, lessonId: lesson.id, gloss: resolved)
+        .then((_) {
+      if (toast && mounted) AppToast.show(context, '已加入生词本');
+    }).catchError((Object e) {
+      if (mounted) {
+        AppToast.show(
+          context,
+          e is ApiException ? e.message : '加入失败',
+        );
+      }
+      return null;
+    });
+  }
+
+  void _goWordWalkthrough() {
+    final lesson = _lesson;
+    if (lesson == null) return;
+    if (orderedTargetTokens(lesson.content).isEmpty) {
+      AppToast.show(context, '暂无目标词');
+      return;
+    }
+    showLessonWordWalkthrough(
+      context: context,
+      content: lesson.content,
+      tts: _tts,
+      lessonId: lesson.id,
+      onKnow: _markKnow,
+      onUnknownHighlight: (lemma, {String? gloss}) =>
+          _markUnknown(lemma, gloss: gloss, toast: false),
+      onLemmaFocused: _scrollToLemma,
+      onFinished: () {
+        _endWalkthroughFocus();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _goCloze();
         });
-        try {
-          await _words.markKnown(lemma, lessonId: lesson.id);
-        } catch (e) {
-          if (mounted) {
-            AppToast.show(
-              context,
-              e is ApiException ? e.message : '标记失败',
-            );
-          }
-        }
-      },
-      onUnknownHighlight: (lemma, {String? gloss}) async {
-        setState(() {
-          _tempHl.add(lemma);
-        });
-        final resolved =
-            (gloss != null && gloss.isNotEmpty)
-                ? gloss
-                : lesson.content.defFor(lemma)?.gloss;
-        try {
-          await _words.markVocab(
-            lemma,
-            lessonId: lesson.id,
-            gloss: resolved,
-          );
-          if (mounted) AppToast.show(context, '已加入生词本');
-        } catch (e) {
-          if (mounted) {
-            AppToast.show(
-              context,
-              e is ApiException ? e.message : '加入失败',
-            );
-          }
-        }
       },
     );
   }
 
-  void _goDialog() {
+  void _goCloze() {
     final lesson = _lesson;
     if (lesson == null) return;
+    if (lesson.content.cloze.isEmpty) {
+      AppToast.show(context, '单词已过完');
+      return;
+    }
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => LessonDialogPage(
-          lesson: lesson,
-          knownLemmas: _known,
-          tempHighlightLemmas: _tempHl,
-          focusLemma: widget.focusLemma,
-          onKnownChanged: (s) => setState(() {
-            _known
-              ..clear()
-              ..addAll(s);
-          }),
-          onTempChanged: (s) => setState(() {
-            _tempHl
-              ..clear()
-              ..addAll(s);
-          }),
-        ),
+        builder: (_) => LessonClozePage(lesson: lesson),
       ),
     );
   }
@@ -281,111 +378,123 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
       children: [
         Expanded(
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(14, 2, 14, 12),
+            controller: _scrollController,
+            // 过词时垫高底部，才能把靠后的词滚进单词卡上方的可见带
+            padding: EdgeInsets.fromLTRB(
+              14,
+              2,
+              14,
+              _walkingWords
+                  ? MediaQuery.sizeOf(context).height * _walkSheetFraction + 48
+                  : 12,
+            ),
             children: [
               _Header(
                 dayIndex: lesson.dayIndex,
                 onBack: _back,
               ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _blue,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      'Day ${lesson.dayIndex}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                        height: 16 / 12,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      lesson.theme,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: _text,
-                        height: 22 / 16,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                lesson.listLabel,
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: _muted,
-                  height: 18 / 13,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: _sceneBg,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _sceneBorder),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              if (!_walkingWords) ...[
+                const SizedBox(height: 8),
+                Row(
                   children: [
-                    Text(
-                      scene.title.contains('场景导入') &&
-                              !scene.title.contains('导读')
-                          ? scene.title.replaceFirst(
-                              '场景导入',
-                              '场景导入（导读）',
-                            )
-                          : scene.title,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
                         color: _blue,
-                        height: 18 / 13,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'Day ${lesson.dayIndex}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                          height: 16 / 12,
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      scene.roleBackground,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: _text,
-                        height: 20 / 14,
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        lesson.theme,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: _text,
+                          height: 22 / 16,
+                        ),
                       ),
                     ),
-                    if (scene.tasksDisplay.isNotEmpty) ...[
-                      const SizedBox(height: 4),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  lesson.listLabel,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: _muted,
+                    height: 18 / 13,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _sceneBg,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: _sceneBorder),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Text(
-                        scene.tasksDisplay,
+                        scene.title.contains('场景导入') &&
+                                !scene.title.contains('导读')
+                            ? scene.title.replaceFirst(
+                                '场景导入',
+                                '场景导入（导读）',
+                              )
+                            : scene.title,
                         style: const TextStyle(
                           fontSize: 13,
-                          color: _task,
+                          fontWeight: FontWeight.w700,
+                          color: _blue,
                           height: 18 / 13,
                         ),
                       ),
+                      const SizedBox(height: 4),
+                      Text(
+                        scene.roleBackground,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: _text,
+                          height: 20 / 14,
+                        ),
+                      ),
+                      if (scene.tasksDisplay.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          scene.tasksDisplay,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: _task,
+                            height: 18 / 13,
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
+                const SizedBox(height: 8),
+              ] else
+                const SizedBox(height: 8),
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(
@@ -416,9 +525,10 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
                       knownLemmas: _known,
                       tempHighlightLemmas: _tempHl,
                       focusLemmas: _focus,
+                      lemmaKeys: _lemmaKeys,
                       fontSize: 17,
                     ),
-                    if (article.zhDisplay.isNotEmpty) ...[
+                    if (article.zhDisplay.isNotEmpty && !_walkingWords) ...[
                       const SizedBox(height: 10),
                       Container(
                         width: double.infinity,
@@ -487,56 +597,26 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-          child: ListenableBuilder(
-            listenable: _tts,
-            builder: (context, _) {
-              final listening = _tts.isSessionFor(article.enPlain);
-              final enterDialog = SizedBox(
-                height: 43,
-                width: listening ? double.infinity : null,
-                child: OutlinedButton(
-                  onPressed: _goDialog,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: _text,
-                    backgroundColor: Colors.white,
-                    side: const BorderSide(color: _cardBorder),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  child: const Text(
-                    '进入对话',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
+          child: SizedBox(
+            height: 48,
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: _goWordWalkthrough,
+              style: FilledButton.styleFrom(
+                backgroundColor: _blue,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
                 ),
-              );
-              final listen = LessonListenBar(
-                tts: _tts,
-                text: article.enPlain,
-                idleLabel: '听一遍短文',
-                accent: _blue,
-              );
-              // 播放中进度条占满宽；空闲时与「进入对话」横排
-              if (listening) {
-                return Column(
-                  children: [
-                    listen,
-                    const SizedBox(height: 8),
-                    enterDialog,
-                  ],
-                );
-              }
-              return Row(
-                children: [
-                  Expanded(child: listen),
-                  const SizedBox(width: 8),
-                  Expanded(child: enterDialog),
-                ],
-              );
-            },
+              ),
+              child: const Text(
+                '我已看完，过一遍单词',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
           ),
         ),
       ],

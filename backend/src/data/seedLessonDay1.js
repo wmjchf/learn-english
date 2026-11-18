@@ -1,4 +1,4 @@
-/** Day 1 公共种子日课（对齐 Figma Phone/日课短文 · 对话） */
+/** Day 1 公共种子日课（短文 + 回填） */
 module.exports = {
   dayIndex: 1,
   theme: '办公室大搬迁',
@@ -9,7 +9,7 @@ module.exports = {
     title: '① 场景导入（导读）',
     roleBackground:
       '你是公司行政部员工。楼层翻新，下周一全部门搬到五楼，主管发了全员邮件。',
-    tasks: ['读懂搬迁通知', '听懂实习生报修对话', '完成底部回填'],
+    tasks: ['读懂搬迁通知', '点开目标词看释义', '完成底部回填'],
   },
   article: {
     title: 'The Big Move',
@@ -52,70 +52,11 @@ module.exports = {
     ],
   },
   dialog: {
-    title: "Something's Broken",
-    zhTitle: '出故障了',
-    zhLead:
-      'Tom：走廊旁复印机又故障，一直卡纸。Linda：可能搬坏了，有人报修吗？Tom：工位插座好像坏了……琳达安排替换机和新插座。',
-    enPlain:
-      "Tom: the photocopier near the corridor is malfunctioning again. Linda: Has anyone called maintenance? Tom: My workstation has no power — the outlet is dead. Linda: I'll request a replacement.",
-    turns: [
-      {
-        who: 'Tom',
-        en: 'The photocopier near the corridor is malfunctioning again.',
-        zh: '走廊旁的【复印机】又【故障】了。',
-        enTokens: [
-          { surface: 'The', lemma: 'the' },
-          { surface: 'photocopier', lemma: 'photocopier', isTarget: true },
-          { surface: 'near', lemma: 'near' },
-          { surface: 'the', lemma: 'the' },
-          { surface: 'corridor', lemma: 'corridor', isTarget: true },
-          { surface: 'is', lemma: 'be' },
-          { surface: 'malfunctioning', lemma: 'malfunction', isTarget: true },
-          { surface: 'again.', lemma: 'again' },
-        ],
-      },
-      {
-        who: 'Linda',
-        en: 'Has anyone called maintenance?',
-        zh: '有人叫【维修】了吗？',
-        enTokens: [
-          { surface: 'Has', lemma: 'have' },
-          { surface: 'anyone', lemma: 'anyone' },
-          { surface: 'called', lemma: 'call' },
-          { surface: 'maintenance', lemma: 'maintenance', isTarget: true },
-          { surface: '?', lemma: '?' },
-        ],
-      },
-      {
-        who: 'Tom',
-        en: 'My workstation has no power — the outlet is dead.',
-        zh: '我的【工位】没电了——【插座】坏了。',
-        enTokens: [
-          { surface: 'My', lemma: 'my' },
-          { surface: 'workstation', lemma: 'workstation', isTarget: true },
-          { surface: 'has', lemma: 'have' },
-          { surface: 'no', lemma: 'no' },
-          { surface: 'power', lemma: 'power' },
-          { surface: '—', lemma: '—' },
-          { surface: 'the', lemma: 'the' },
-          { surface: 'outlet', lemma: 'outlet', isTarget: true },
-          { surface: 'is', lemma: 'be' },
-          { surface: 'dead.', lemma: 'dead' },
-        ],
-      },
-      {
-        who: 'Linda',
-        en: "I'll request a replacement.",
-        zh: '我去申请一台【替换机】。',
-        enTokens: [
-          { surface: "I'll", lemma: 'will' },
-          { surface: 'request', lemma: 'request' },
-          { surface: 'a', lemma: 'a' },
-          { surface: 'replacement', lemma: 'replacement', isTarget: true },
-          { surface: '.', lemma: '.' },
-        ],
-      },
-    ],
+    title: '',
+    zhTitle: '',
+    zhLead: '',
+    enPlain: '',
+    turns: [],
   },
   cloze: [
     {

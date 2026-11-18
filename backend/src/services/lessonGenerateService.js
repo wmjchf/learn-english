@@ -72,28 +72,28 @@ function buildPrompt({
       ? `\n禁止复用这些已有主题（事件/情节也要换新）：${avoidThemes.join('、')}`
       : '';
   const targets = (targetLemmas || []).join(', ');
-  return `写 Day ${dayIndex} 日课 JSON（紧凑，勿解释）。
+  return `写 Day ${dayIndex} 日课 JSON（紧凑，勿解释）。不要生成对话/dialog/turns。
 
 画像：${level}；${jobLabel}；场景 ${sceneLine}；兴趣 ${interestLine}；${bankTitle}
-目标词（必须全部出现在短文 enPlain 或对话 turns 中，每词1-2次，勿堆砌列表）：${targets}${reviewLine}${avoidLine}${repairLine}
+目标词（必须全部出现在短文 enPlain 中，每词1-2次，勿堆砌列表）：${targets}${reviewLine}${avoidLine}${repairLine}
 
 硬性要求：
-- 短文+对话合计须覆盖全部目标词（覆盖率≥70%，尽量100%）
+- 仅短文须覆盖全部目标词（覆盖率≥70%，尽量100%）
 - 先列好要用到的目标词再写故事，再写 theme/title
 - theme 与故事必须是新事件，不得与近期日课雷同
-- 主题/场景导读/短文/对话必须明显贴合职业「${jobLabel}」与场景「${sceneLine}」（兴趣可作点缀：${interestLine}）；禁止写成与当前画像无关的通用职场鸡汤
-- 中译必须忠实：zhPlain / turns[].zh 是对英文的完整翻译，禁止摘要、改写剧情、用导读顶替；长度应覆盖原文信息点
+- 主题/场景导读/短文必须明显贴合职业「${jobLabel}」与场景「${sceneLine}」（兴趣可作点缀：${interestLine}）；禁止写成与当前画像无关的通用职场鸡汤
+- 中译必须忠实：zhPlain 是对 enPlain 的完整翻译，禁止摘要、改写剧情、用导读顶替；长度应覆盖原文信息点
 - 英文正文禁止 Markdown：不要用 **word** 或 *word* 包目标词（App 会自行高亮）
+- 禁止输出 dialog、turns、对话台词等字段
 
 字段：
 theme(中文标题 4-10 字：必须概括本篇短文的具体事件/话题，且能看出职业或场景；内容不同则 theme 必须不同；禁止「今日职场」「商务英语」「职场沟通」等空泛词),
 title(英文短标题，同样要具体、贴合本篇内容与画像),
-scene:{roleBackground(中文1-2句，点明身份与场景),tasks[3]},
-article:{title(可贴合短文的英文题),zhTitle(title的中文译名，4-12字，具体),zhLead(中文≤40字，只作导读/摘要，不是全文翻译),enPlain(英文55-80词，自然写入目标词；纯文本勿加**),zhPlain(必须是 enPlain 的完整忠实中文翻译，一句不漏；禁止照搬 zhLead；目标词对应中文用【】包住，如【搬迁】；勿做成词表)},
-dialog:{zhTitle(对话英文题的中文译名),zhLead(中文≤30字场景概要，不是台词翻译),turns:[{who,en,zh}] 恰好3轮；en 纯文本勿加**；每轮 zh 必须是对本轮 en 的忠实中文翻译（勿写成剧情摘要，勿复制 zhLead）；目标词对应中文用【】包住；对话里也可写入剩余目标词},
+scene:{roleBackground(中文1-2句，点明身份与场景),tasks[3]（与阅读短文/点词/回填相关，勿提对话）},
+article:{title(可贴合短文的英文题),zhTitle(title的中文译名，4-12字，具体),zhLead(中文≤40字，只作导读/摘要，不是全文翻译),enPlain(英文70-100词，自然写入全部目标词；纯文本勿加**),zhPlain(必须是 enPlain 的完整忠实中文翻译，一句不漏；禁止照搬 zhLead；目标词对应中文用【】包住，如【搬迁】；勿做成词表)},
 cloze:[{sentence含________,hintZh,answer,before,after}] 恰好8题；answer∈目标词且互不重复
 
-难度贴合 ${level}；职场自然；禁止只列单词；先想清本篇具体故事再写 theme/title；写完英文后务必另写完整中译，dialog.turns[].zh 严禁用导读代替。`;
+难度贴合 ${level}；职场自然；禁止只列单词；先想清本篇具体故事再写 theme/title；写完英文后务必另写完整中译。`;
 }
 
 const GENERIC_THEMES = new Set([
@@ -141,7 +141,7 @@ function normalizeLesson(raw, { targetLemmas, reviewLemmas = [], level, dayIndex
     tasks: asArray(raw.scene?.tasks).map((t) => asString(t)).filter(Boolean).slice(0, 3),
   };
   if (scene.tasks.length < 2) {
-    scene.tasks = ['读懂今日短文', '听懂对话', '完成底部回填'];
+    scene.tasks = ['读懂今日短文', '点开目标词看释义', '完成底部回填'];
   }
 
   const articlePlain = stripMarkdownEmphasis(
@@ -165,30 +165,13 @@ function normalizeLesson(raw, { targetLemmas, reviewLemmas = [], level, dayIndex
     enTokens: tokenizeEnglish(articlePlain, targetLemmas, reviewLemmas),
   };
 
-  const turnsRaw = asArray(raw.dialog?.turns);
-  const turns = turnsRaw.map((t) => {
-    const en = stripMarkdownEmphasis(asString(t.en));
-    return {
-      who: asString(t.who, 'A'),
-      en,
-      zh: asString(t.zh),
-      enTokens: tokenizeEnglish(en, targetLemmas, reviewLemmas),
-    };
-  }).filter((t) => t.en);
-
-  const dialogPlain = stripMarkdownEmphasis(
-    asString(raw.dialog?.enPlain || raw.dialog?.en_plain) ||
-      turns.map((t) => `${t.who}: ${t.en}`).join(' '),
-  );
-  const dialogZhLead = asString(raw.dialog?.zhLead || raw.dialog?.zh_lead);
-  let dialogZhTitle = asString(raw.dialog?.zhTitle || raw.dialog?.zh_title);
-
+  // 产品已去掉对话页：忽略模型偶发 dialog，固定空结构兼容旧客户端
   const dialog = {
-    title: asString(raw.dialog?.title, "Let's Talk"),
-    zhTitle: dialogZhTitle,
-    zhLead: dialogZhLead,
-    enPlain: dialogPlain,
-    turns,
+    title: '',
+    zhTitle: '',
+    zhLead: '',
+    enPlain: '',
+    turns: [],
   };
 
   let cloze = asArray(raw.cloze)
@@ -249,8 +232,7 @@ function ensureTargetCoverage(lesson) {
   const targets = lesson.targetLemmas || [];
   if (!targets.length) return coverageScore('', []);
 
-  const corpusOf = () =>
-    `${lesson.article?.enPlain || ''}\n${lesson.dialog?.enPlain || ''}`;
+  const corpusOf = () => `${lesson.article?.enPlain || ''}`;
   let cov = coverageScore(corpusOf(), targets);
   if (cov.ratio >= 0.7) return cov;
 
@@ -291,23 +273,9 @@ function isFaithfulArticleZh(lesson) {
   if (lead && zh === lead) return false;
   const words = enWordCount(en);
   const cjk = countCjk(zh);
-  // 英文约 55–80 词时，完整中译通常远长于导读（导读≤40字）
-  if (cjk < Math.max(36, Math.floor(words * 0.7))) return false;
+  // 英文约 70–100 词时，完整中译通常远长于导读（导读≤40字）
+  if (cjk < Math.max(40, Math.floor(words * 0.7))) return false;
   if (lead && cjk <= countCjk(lead) + 8) return false;
-  return true;
-}
-
-function isFaithfulTurnZh(turn, lesson) {
-  const en = asString(turn?.en);
-  const zh = asString(turn?.zh);
-  if (!en || !zh) return false;
-  const leadA = asString(lesson.article?.zhLead);
-  const leadD = asString(lesson.dialog?.zhLead);
-  if (leadA && zh === leadA) return false;
-  if (leadD && zh === leadD) return false;
-  const words = enWordCount(en);
-  const cjk = countCjk(zh);
-  if (cjk < Math.max(4, Math.floor(words * 0.5))) return false;
   return true;
 }
 
@@ -315,32 +283,15 @@ function isFaithfulTurnZh(turn, lesson) {
  * 译文不合格时单独再译一轮（只出中文，不改英文故事）。
  */
 async function ensureFaithfulTranslations(lesson) {
-  const needArticle = !isFaithfulArticleZh(lesson);
-  const turnIdx = [];
-  (lesson.dialog?.turns || []).forEach((t, i) => {
-    if (!isFaithfulTurnZh(t, lesson)) turnIdx.push(i);
-  });
-  if (!needArticle && !turnIdx.length) return { fixed: false };
+  if (isFaithfulArticleZh(lesson)) return { fixed: false };
 
   const targets = (lesson.targetLemmas || []).join(', ');
-  const turnBlock = turnIdx
-    .map((i) => {
-      const t = lesson.dialog.turns[i];
-      return `- index ${i} | ${t.who}: ${t.en}`;
-    })
-    .join('\n');
-
   const userParts = [
     '只做忠实中文翻译。禁止摘要、禁止改写剧情、禁止用导读代替。',
     '目标词对应的中文请用【】包住。',
     targets ? `目标词：${targets}` : '',
-    needArticle
-      ? `短文英文 enPlain：\n${lesson.article.enPlain}\n请输出完整中译到 zhPlain。`
-      : '',
-    turnIdx.length
-      ? `对话需重译的轮次：\n${turnBlock}\n每轮输出对应 index 的 zh。`
-      : '',
-    '返回 JSON：{"zhPlain":"...仅当需要短文翻译时...","turns":[{"index":0,"zh":"..."}]}',
+    `短文英文 enPlain：\n${lesson.article.enPlain}\n请输出完整中译到 zhPlain。`,
+    '返回 JSON：{"zhPlain":"..."}',
   ]
     .filter(Boolean)
     .join('\n\n');
@@ -354,27 +305,15 @@ async function ensureFaithfulTranslations(lesson) {
       { role: 'user', content: userParts },
     ],
     temperature: 0.2,
-    maxTokens: 1200,
+    maxTokens: 900,
     jsonMode: true,
   });
 
   const raw = parseJsonContent(result.content);
   let fixed = false;
-  if (needArticle) {
-    const zh = asString(raw.zhPlain || raw.zh_plain);
-    if (zh && (!lesson.article.zhLead || zh !== lesson.article.zhLead)) {
-      lesson.article.zhPlain = zh;
-      fixed = true;
-    }
-  }
-  for (const row of asArray(raw.turns)) {
-    const i = Number(row.index ?? row.i);
-    const zh = asString(row.zh);
-    if (!Number.isInteger(i) || i < 0 || i >= (lesson.dialog?.turns?.length || 0)) {
-      continue;
-    }
-    if (!zh) continue;
-    lesson.dialog.turns[i].zh = zh;
+  const zh = asString(raw.zhPlain || raw.zh_plain);
+  if (zh && (!lesson.article.zhLead || zh !== lesson.article.zhLead)) {
+    lesson.article.zhPlain = zh;
     fixed = true;
   }
   return { fixed, latencyMs: result.latencyMs, model: result.model };
@@ -385,18 +324,8 @@ function validateLesson(lesson, { avoidThemes = [] } = {}) {
   if (!lesson.article?.enPlain || lesson.article.enPlain.split(/\s+/).length < 25) {
     errors.push('短文过短');
   }
-  if (!lesson.dialog?.turns?.length) errors.push('缺少对话');
-  const dialogTurns = lesson.dialog?.turns || [];
-  const turnsMissingZh = dialogTurns.filter((t) => !asString(t.zh)).length;
-  if (dialogTurns.length && turnsMissingZh > 0) {
-    errors.push(`对话缺逐句中译 ${turnsMissingZh}/${dialogTurns.length} 轮`);
-  }
   if (!isFaithfulArticleZh(lesson)) {
     errors.push('短文中译缺失或不像完整翻译（疑似导读顶替）');
-  }
-  const weakTurns = dialogTurns.filter((t) => !isFaithfulTurnZh(t, lesson)).length;
-  if (dialogTurns.length && weakTurns > 0) {
-    errors.push(`对话中译不忠实 ${weakTurns}/${dialogTurns.length} 轮`);
   }
   if (!lesson.cloze || lesson.cloze.length < 8) {
     errors.push(`回填不足 8 题（现 ${lesson.cloze?.length || 0}）`);
@@ -423,8 +352,7 @@ function validateLesson(lesson, { avoidThemes = [] } = {}) {
     }
   }
 
-  const corpus = `${lesson.article.enPlain}\n${lesson.dialog.enPlain}`;
-  const cov = coverageScore(corpus, lesson.targetLemmas);
+  const cov = coverageScore(lesson.article.enPlain || '', lesson.targetLemmas);
   if (cov.ratio < 0.7) {
     errors.push(`目标词覆盖率 ${(cov.ratio * 100).toFixed(0)}% < 70%（缺: ${cov.miss.slice(0, 5).join(', ')}）`);
   }
@@ -443,7 +371,7 @@ async function generateOnce(ctx) {
       { role: 'user', content: prompt },
     ],
     temperature: 0.35,
-    maxTokens: 1600,
+    maxTokens: 1400,
     jsonMode: true,
   });
 

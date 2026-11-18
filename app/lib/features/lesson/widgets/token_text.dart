@@ -12,6 +12,7 @@ class TokenText extends StatelessWidget {
     this.knownLemmas = const {},
     this.tempHighlightLemmas = const {},
     this.focusLemmas = const {},
+    this.lemmaKeys,
     this.leading,
     this.fontSize = 16,
   });
@@ -22,6 +23,8 @@ class TokenText extends StatelessWidget {
   final Set<String> tempHighlightLemmas;
   /// 从生词本点进原文时强调的词。
   final Set<String> focusLemmas;
+  /// 过词定位：lemma → GlobalKey（每个 lemma 只绑第一次出现）。
+  final Map<String, GlobalKey>? lemmaKeys;
   final Widget? leading;
   final double fontSize;
 
@@ -34,6 +37,7 @@ class TokenText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final attachedKeys = <String>{};
     return Wrap(
       spacing: 4,
       runSpacing: 4,
@@ -41,13 +45,14 @@ class TokenText extends StatelessWidget {
       children: [
         ?leading,
         ...tokens.map((t) {
+          final lemma = t.lemma.toLowerCase();
           final isPunct = RegExp(r"^[.,!?;:—\-']+$").hasMatch(t.surface);
           final showFocus =
-              t.lemma.isNotEmpty && focusLemmas.contains(t.lemma);
+              t.lemma.isNotEmpty && focusLemmas.contains(lemma);
           final showTarget = t.isTarget &&
-              !knownLemmas.contains(t.lemma) &&
+              !knownLemmas.contains(lemma) &&
               t.lemma.isNotEmpty;
-          final showTemp = tempHighlightLemmas.contains(t.lemma);
+          final showTemp = tempHighlightLemmas.contains(lemma);
           final highlight = showTarget || showTemp;
 
           final child = Text(
@@ -92,11 +97,17 @@ class TokenText extends StatelessWidget {
             );
           }
 
-          return GestureDetector(
+          Widget tap = GestureDetector(
             onTap: () => onTap(t),
             behavior: HitTestBehavior.opaque,
             child: painted,
           );
+
+          final gKey = lemmaKeys?[lemma];
+          if (gKey != null && lemma.isNotEmpty && attachedKeys.add(lemma)) {
+            tap = KeyedSubtree(key: gKey, child: tap);
+          }
+          return tap;
         }),
       ],
     );
