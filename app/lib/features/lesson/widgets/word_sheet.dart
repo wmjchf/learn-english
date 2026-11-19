@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:app_starter/core/network/api_client.dart';
 import 'package:app_starter/features/lesson/lesson_models.dart';
 import 'package:app_starter/features/lesson/lesson_tts.dart';
+import 'package:app_starter/features/lesson/lexicon_service.dart';
 import 'package:app_starter/features/lesson/word_repository.dart';
+import 'package:app_starter/features/lesson/widgets/lexicon_extras.dart';
 
 /// 点词半屏：有完整释义才展示；否则整块 loading。
 Future<void> showWordSheet({
@@ -97,6 +99,7 @@ class _WordSheetBodyState extends State<_WordSheetBody> {
   late bool _isTarget;
   bool _loading = false;
   String? _error;
+  LexiconEntry? _lexicon;
 
   /// 仅当有完整 LLM 详解（释义 + 详解 + 例句）才算可展示。
   bool _isRich(LessonDef? def) {
@@ -157,6 +160,15 @@ class _WordSheetBodyState extends State<_WordSheetBody> {
       _loading = true;
       _fetchLookup();
     }
+    _loadLexicon();
+  }
+
+  Future<void> _loadLexicon() async {
+    try {
+      final entry = await LexiconService.instance.lookup(widget.lemma);
+      if (!mounted) return;
+      setState(() => _lexicon = entry);
+    } catch (_) {}
   }
 
   Future<void> _fetchLookup() async {
@@ -301,7 +313,10 @@ class _WordSheetBodyState extends State<_WordSheetBody> {
                 ? _contextLine
                 : '',
           ),
-          _section('原型 · 词根', _root),
+          LexiconExtras(
+            entry: _lexicon,
+            rootLine: _root,
+          ),
         ],
       ),
     );

@@ -5,6 +5,7 @@ import 'package:app_starter/features/lesson/lesson_cloze_page.dart';
 import 'package:app_starter/features/lesson/lesson_models.dart';
 import 'package:app_starter/features/lesson/lesson_repository.dart';
 import 'package:app_starter/features/lesson/lesson_tts.dart';
+import 'package:app_starter/features/lesson/sentence_cloze.dart';
 import 'package:app_starter/features/lesson/word_repository.dart';
 import 'package:app_starter/features/lesson/widgets/lesson_generating_view.dart';
 import 'package:app_starter/features/lesson/widgets/token_text.dart';
@@ -321,7 +322,7 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
   void _goCloze() {
     final lesson = _lesson;
     if (lesson == null) return;
-    if (lesson.content.cloze.isEmpty) {
+    if (buildSentenceClozePages(lesson.content).isEmpty) {
       AppToast.show(context, '单词已过完');
       return;
     }

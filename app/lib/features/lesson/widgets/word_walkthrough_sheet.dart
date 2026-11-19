@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:app_starter/core/network/api_client.dart';
 import 'package:app_starter/features/lesson/lesson_models.dart';
 import 'package:app_starter/features/lesson/lesson_tts.dart';
+import 'package:app_starter/features/lesson/lexicon_service.dart';
 import 'package:app_starter/features/lesson/word_repository.dart';
+import 'package:app_starter/features/lesson/widgets/lexicon_extras.dart';
 
 /// 按短文出现顺序收集目标词；未入文的目标词补在末尾。
 List<LessonToken> orderedTargetTokens(LessonContent content) {
@@ -123,6 +125,7 @@ class _WalkthroughSheetState extends State<_WalkthroughSheet> {
   String _exampleZh = '';
   bool _loading = true;
   String? _error;
+  LexiconEntry? _lexicon;
 
   LessonToken get _token => widget.tokens[_index];
   int get _total => widget.tokens.length;
@@ -198,9 +201,22 @@ class _WalkthroughSheetState extends State<_WalkthroughSheet> {
     });
   }
 
+  Future<void> _loadLexicon(String lemma) async {
+    try {
+      final entry = await LexiconService.instance.lookup(lemma);
+      if (!mounted || _token.lemma != lemma) return;
+      setState(() => _lexicon = entry);
+    } catch (_) {
+      if (!mounted || _token.lemma != lemma) return;
+      setState(() => _lexicon = null);
+    }
+  }
+
   Future<void> _loadCurrent({required bool speak}) async {
     final token = _token;
+    _lexicon = null;
     _notifyFocus(token.lemma);
+    _loadLexicon(token.lemma);
     final local = widget.content.defFor(token.lemma);
     final speakText = token.surface.replaceAll(RegExp(r"[^A-Za-z']"), '');
     if (speak && speakText.isNotEmpty) {
@@ -425,7 +441,10 @@ class _WalkthroughSheetState extends State<_WalkthroughSheet> {
                 ? _contextLine
                 : '',
           ),
-          _section('原型 · 词根', _root),
+          LexiconExtras(
+            entry: _lexicon,
+            rootLine: _root,
+          ),
         ],
       ),
     );

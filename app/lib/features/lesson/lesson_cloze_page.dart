@@ -3,10 +3,11 @@ import 'package:app_starter/core/ui/app_toast.dart';
 import 'package:app_starter/features/lesson/lesson_models.dart';
 import 'package:app_starter/features/lesson/lesson_repository.dart';
 import 'package:app_starter/features/lesson/lesson_tts.dart';
+import 'package:app_starter/features/lesson/sentence_cloze.dart';
 import 'package:app_starter/features/lesson/word_repository.dart';
 import 'package:app_starter/features/shell/main_shell.dart';
 
-/// 闭眼回填：一题一判；全对打卡回今日；错题揭晓并进待巩固，改对后再进下一题。
+/// 例句闭眼回填：一页一句；同句多词合填；输完继续；全对打卡。
 class LessonClozePage extends StatefulWidget {
   const LessonClozePage({super.key, required this.lesson});
 
@@ -20,16 +21,16 @@ class _LessonClozePageState extends State<LessonClozePage> {
   final _repo = LessonRepository();
   final _words = WordRepository();
   final _tts = LessonTts();
-  final _focus = FocusNode();
-  late final TextEditingController _controller;
+
+  late final List<SentenceClozePageData> _pages;
   late final List<bool?> _results;
+  late List<TextEditingController> _controllers;
+  late List<FocusNode> _foci;
 
   int _index = 0;
-  /// 当前题是否已判定过（错题会揭晓答案）
   bool _judged = false;
   int _wrongTotal = 0;
   bool _submitting = false;
-  /// 答对后自动切题中，防止连点
   bool _advancing = false;
 
   static const _bg = Color(0xFFF5F6F8);
@@ -44,30 +45,63 @@ class _LessonClozePageState extends State<LessonClozePage> {
   static const _warnSoft = Color(0xFFFEF3C7);
   static const _warnText = Color(0xFFB45309);
 
-  List<ClozeItem> get _items => widget.lesson.content.cloze;
-
-  ClozeItem get _current => _items[_index];
+  SentenceClozePageData get _current => _pages[_index];
 
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController();
-    _results = List.filled(_items.length, null);
+    _pages = buildSentenceClozePages(widget.lesson.content);
+    _results = List<bool?>.filled(_pages.length, null);
+    _controllers = [];
+    _foci = [];
+    _setupFieldsForPage(0);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _focus.requestFocus();
+      if (mounted && _foci.isNotEmpty) _foci.first.requestFocus();
     });
+  }
+
+  void _disposeFields() {
+    for (final c in _controllers) {
+      c.dispose();
+    }
+    for (final f in _foci) {
+      f.dispose();
+    }
+    _controllers = [];
+    _foci = [];
+  }
+
+  void _setupFieldsForPage(int pageIndex) {
+    _disposeFields();
+    if (_pages.isEmpty || pageIndex < 0 || pageIndex >= _pages.length) return;
+    final n = _pages[pageIndex].blanks.length;
+    _controllers = List.generate(n, (_) => TextEditingController());
+    _foci = List.generate(n, (_) => FocusNode());
   }
 
   @override
   void dispose() {
-    _controller.dispose();
-    _focus.dispose();
+    _disposeFields();
     _tts.dispose();
     super.dispose();
   }
 
   String _norm(String s) =>
       s.trim().toLowerCase().replaceAll(RegExp(r'[^a-z]'), '');
+
+  bool _blankMatches(int i) {
+    final blank = _current.blanks[i];
+    final typed = _norm(_controllers[i].text);
+    if (typed.isEmpty) return false;
+    return typed == _norm(blank.answer) || typed == _norm(blank.surface);
+  }
+
+  bool _allMatch() {
+    for (var i = 0; i < _current.blanks.length; i++) {
+      if (!_blankMatches(i)) return false;
+    }
+    return true;
+  }
 
   Future<void> _markWrongVocab(String answer) async {
     final lemma = answer.trim().toLowerCase();
@@ -93,9 +127,7 @@ class _LessonClozePageState extends State<LessonClozePage> {
         final n = result.currentStreak;
         toast = n != null ? '打卡成功 · 连胜 $n 天' : '打卡成功 · 连胜 +1';
       }
-    } catch (_) {
-      // 本地已通过拼写，完课失败不挡回今日
-    }
+    } catch (_) {}
     if (!mounted) return;
     AppToast.show(context, toast);
     Navigator.of(context).pushAndRemoveUntil(
@@ -104,62 +136,57 @@ class _LessonClozePageState extends State<LessonClozePage> {
     );
   }
 
-  void _refocusInput() {
+  void _refocusFirst() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      // 再等一拍：部分 iOS / 模拟器在禁用过输入框后，需要重建连接才能打字
+      if (!mounted || _foci.isEmpty) return;
       Future<void>.delayed(const Duration(milliseconds: 80), () {
-        if (!mounted) return;
-        if (!_focus.hasFocus) _focus.requestFocus();
+        if (!mounted || _foci.isEmpty) return;
+        if (!_foci.first.hasFocus) _foci.first.requestFocus();
       });
     });
   }
 
   void _goNext() {
-    if (_index >= _items.length - 1) {
+    if (_index >= _pages.length - 1) {
       _completeLesson();
       return;
     }
-    // 先断掉旧 IME 连接，避免下一题「键盘在动、框不进字」
-    _focus.unfocus();
+    for (final f in _foci) {
+      f.unfocus();
+    }
     setState(() {
       _index += 1;
       _judged = false;
       _advancing = false;
-      _controller.value = TextEditingValue.empty;
+      _setupFieldsForPage(_index);
     });
-    _refocusInput();
+    _refocusFirst();
   }
 
   Future<void> _onCta() async {
-    if (_submitting || _advancing || _items.isEmpty) return;
+    if (_submitting || _advancing || _pages.isEmpty) return;
 
-    // 已判对：进下一题 / 打卡
     if (_judged && _results[_index] == true) {
       _goNext();
       return;
     }
 
-    // 已判错：必须改对才能继续
     if (_judged && _results[_index] == false) {
-      final ok = _norm(_controller.text) == _norm(_current.answer);
-      if (!ok) {
-        AppToast.show(context, '请先改对再继续');
+      if (!_allMatch()) {
+        AppToast.show(context, '请先全部改对再继续');
         return;
       }
-      setState(() {
-        _results[_index] = true;
-      });
+      setState(() => _results[_index] = true);
       _goNext();
       return;
     }
 
-    // 首次判定当前题
-    final ok = _norm(_controller.text) == _norm(_current.answer);
+    final ok = _allMatch();
     if (ok) {
-      // 先失焦再标「正确」，避免 enabled/readOnly 切换打断 iOS 输入连接
       _advancing = true;
-      _focus.unfocus();
+      for (final f in _foci) {
+        f.unfocus();
+      }
       setState(() {
         _judged = true;
         _results[_index] = true;
@@ -175,23 +202,38 @@ class _LessonClozePageState extends State<LessonClozePage> {
       _results[_index] = false;
       _wrongTotal += 1;
     });
-    await _markWrongVocab(_current.answer);
+    for (var i = 0; i < _current.blanks.length; i++) {
+      if (!_blankMatches(i)) {
+        await _markWrongVocab(_current.blanks[i].answer);
+      }
+    }
   }
 
   String get _ctaLabel {
     if (_submitting) return '提交中…';
-    if (!_judged) {
-      return _index >= _items.length - 1 ? '判定并打卡' : '判定';
+    final last = _index >= _pages.length - 1;
+    if (!_judged) return last ? '判定并打卡' : '继续';
+    if (_results[_index] == true) return last ? '打卡' : '继续';
+    return last ? '改对后打卡' : '改对后继续';
+  }
+
+  String _sentenceWithHints(SentenceClozePageData page) {
+    // 先换成唯一占位，避免「________（提示）」里的 ________ 被下一次 replaceFirst 再次命中
+    var s = page.sentenceBlanked;
+    for (var i = 0; i < page.blanks.length; i++) {
+      s = s.replaceFirst('________', '⟦B$i⟧');
     }
-    if (_results[_index] == true) {
-      return _index >= _items.length - 1 ? '打卡' : '下一题';
+    for (var i = 0; i < page.blanks.length; i++) {
+      final hint = page.blanks[i].hintZh.trim();
+      final shown = hint.isEmpty ? '________' : '________（$hint）';
+      s = s.replaceFirst('⟦B$i⟧', shown);
     }
-    return _index >= _items.length - 1 ? '改对后打卡' : '改对后继续';
+    return s;
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_items.isEmpty) {
+    if (_pages.isEmpty) {
       return Scaffold(
         backgroundColor: _bg,
         body: SafeArea(
@@ -205,10 +247,11 @@ class _LessonClozePageState extends State<LessonClozePage> {
       );
     }
 
-    final item = _current;
+    final page = _current;
     final result = _results[_index];
     final showAnswer = _judged && result == false;
-    final total = _items.length;
+    final total = _pages.length;
+    final multi = page.blanks.length > 1;
 
     return Scaffold(
       backgroundColor: _bg,
@@ -262,7 +305,7 @@ class _LessonClozePageState extends State<LessonClozePage> {
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  '闭眼回填',
+                  '例句回填',
                   style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.w700,
@@ -276,7 +319,9 @@ class _LessonClozePageState extends State<LessonClozePage> {
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  '第 ${_index + 1} / $total 题 · 遮住上文，根据语境拼出目标词。',
+                  multi
+                      ? '第 ${_index + 1} / $total 句 · 本句有 ${page.blanks.length} 个目标词，一起填'
+                      : '第 ${_index + 1} / $total 句 · 根据例句拼出目标词',
                   style: const TextStyle(fontSize: 13, color: _muted),
                 ),
               ),
@@ -296,8 +341,8 @@ class _LessonClozePageState extends State<LessonClozePage> {
                   ),
                   child: Text(
                     showAnswer
-                        ? '这题不对，正确答案已标出 · 已进待巩固\n改对后再继续'
-                        : '已累计 $_wrongTotal 题错过 · 错词已进待巩固',
+                        ? '这句不对，正确答案已标出 · 已进待巩固\n改对后再继续'
+                        : '已累计 $_wrongTotal 句错过 · 错词已进待巩固',
                     style: const TextStyle(
                       fontSize: 13,
                       color: _warnText,
@@ -330,7 +375,7 @@ class _LessonClozePageState extends State<LessonClozePage> {
                           children: [
                             Expanded(
                               child: Text(
-                                '第 ${_index + 1} 题',
+                                multi ? '同句合填' : '第 ${_index + 1} 句',
                                 style: const TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
@@ -358,84 +403,92 @@ class _LessonClozePageState extends State<LessonClozePage> {
                               ),
                           ],
                         ),
-                        if (item.before.isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            item.before,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: _muted,
-                              height: 1.4,
+                        const SizedBox(height: 10),
+                        Text(
+                          _sentenceWithHints(page),
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: _text,
+                            height: 1.5,
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        for (var i = 0; i < page.blanks.length; i++) ...[
+                          if (i > 0) const SizedBox(height: 10),
+                          if (multi)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 6),
+                              child: Text(
+                                '空格 ${i + 1} · ${page.blanks[i].hintZh}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: _muted,
+                                ),
+                              ),
+                            ),
+                          TextField(
+                            key: ValueKey('cloze-$_index-$i'),
+                            controller: _controllers[i],
+                            focusNode: _foci[i],
+                            autocorrect: false,
+                            enableSuggestions: false,
+                            enableIMEPersonalizedLearning: false,
+                            readOnly:
+                                _submitting || _advancing || result == true,
+                            keyboardType: TextInputType.visiblePassword,
+                            textCapitalization: TextCapitalization.none,
+                            textInputAction: i < page.blanks.length - 1
+                                ? TextInputAction.next
+                                : TextInputAction.done,
+                            onSubmitted: (_) {
+                              if (i < page.blanks.length - 1) {
+                                _foci[i + 1].requestFocus();
+                              } else {
+                                _onCta();
+                              }
+                            },
+                            decoration: InputDecoration(
+                              hintText: multi ? '拼写第 ${i + 1} 个词' : '拼写英文',
+                              filled: true,
+                              fillColor: result == true
+                                  ? _okSoft
+                                  : result == false && !_blankMatches(i)
+                                      ? _badSoft
+                                      : const Color(0xFFF8FAFC),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide(
+                                  color: result == null
+                                      ? _border
+                                      : (result ? _ok : _bad),
+                                ),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide(
+                                  color: result == null
+                                      ? _border
+                                      : (result ? _ok : _bad),
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide(
+                                  color: result == false ? _bad : _blue,
+                                  width: 1.5,
+                                ),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 12,
+                              ),
                             ),
                           ),
                         ],
-                        const SizedBox(height: 8),
-                        Text(
-                          item.sentence.replaceAll(
-                            '________',
-                            '________（${item.hintZh}）',
-                          ),
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: _text,
-                            height: 1.4,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        TextField(
-                          // 每题重建，避免上一题禁用输入后 IME 粘连
-                          key: ValueKey('cloze-field-$_index'),
-                          controller: _controller,
-                          focusNode: _focus,
-                          autocorrect: false,
-                          enableSuggestions: false,
-                          enableIMEPersonalizedLearning: false,
-                          // 勿用 enabled:false：iOS 上易导致键盘还在、文字进不了框
-                          readOnly: _submitting || _advancing || result == true,
-                          keyboardType: TextInputType.visiblePassword,
-                          textCapitalization: TextCapitalization.none,
-                          textInputAction: TextInputAction.done,
-                          onSubmitted: (_) => _onCta(),
-                          decoration: InputDecoration(
-                            hintText: '拼写英文',
-                            filled: true,
-                            fillColor: result == true
-                                ? _okSoft
-                                : result == false
-                                    ? _badSoft
-                                    : const Color(0xFFF8FAFC),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: BorderSide(
-                                color: result == null
-                                    ? _border
-                                    : (result ? _ok : _bad),
-                              ),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: BorderSide(
-                                color: result == null
-                                    ? _border
-                                    : (result ? _ok : _bad),
-                              ),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
-                              borderSide: BorderSide(
-                                color: result == false ? _bad : _blue,
-                                width: 1.5,
-                              ),
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 12,
-                            ),
-                          ),
-                        ),
                         if (showAnswer) ...[
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 12),
                           Container(
                             width: double.infinity,
                             padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
@@ -443,67 +496,68 @@ class _LessonClozePageState extends State<LessonClozePage> {
                               color: _badSoft,
                               borderRadius: BorderRadius.circular(10),
                             ),
-                            child: Row(
+                            child: Column(
                               children: [
-                                Expanded(
-                                  child: RichText(
-                                    text: TextSpan(
-                                      style: const TextStyle(
-                                        fontSize: 13,
-                                        color: _bad,
-                                        height: 1.35,
-                                      ),
-                                      children: [
-                                        const TextSpan(text: '正确答案：'),
-                                        TextSpan(
-                                          text: item.answer,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w700,
-                                            fontSize: 15,
+                                for (var i = 0; i < page.blanks.length; i++)
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: RichText(
+                                          text: TextSpan(
+                                            style: const TextStyle(
+                                              fontSize: 13,
+                                              color: _bad,
+                                              height: 1.35,
+                                            ),
+                                            children: [
+                                              TextSpan(
+                                                text: multi
+                                                    ? '空格 ${i + 1}：'
+                                                    : '正确答案：',
+                                              ),
+                                              TextSpan(
+                                                text: page.blanks[i].surface,
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w700,
+                                                  fontSize: 15,
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ),
-                                      ],
-                                    ),
+                                      ),
+                                      IconButton(
+                                        tooltip: '朗读',
+                                        onPressed: () => _tts
+                                            .speakWord(page.blanks[i].surface),
+                                        icon: const Icon(
+                                          Icons.volume_up_rounded,
+                                          color: _bad,
+                                          size: 22,
+                                        ),
+                                      ),
+                                      TextButton(
+                                        onPressed: () {
+                                          _controllers[i].text =
+                                              page.blanks[i].surface;
+                                          _controllers[i].selection =
+                                              TextSelection.collapsed(
+                                            offset:
+                                                page.blanks[i].surface.length,
+                                          );
+                                          _foci[i].requestFocus();
+                                        },
+                                        child: const Text(
+                                          '填入',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                            color: _bad,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ),
-                                IconButton(
-                                  tooltip: '朗读',
-                                  onPressed: () => _tts.speakWord(item.answer),
-                                  icon: const Icon(
-                                    Icons.volume_up_rounded,
-                                    color: _bad,
-                                    size: 22,
-                                  ),
-                                ),
-                                TextButton(
-                                  onPressed: () {
-                                    _controller.text = item.answer;
-                                    _controller.selection =
-                                        TextSelection.collapsed(
-                                      offset: item.answer.length,
-                                    );
-                                    _focus.requestFocus();
-                                  },
-                                  child: const Text(
-                                    '填入',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      color: _bad,
-                                    ),
-                                  ),
-                                ),
                               ],
-                            ),
-                          ),
-                        ],
-                        if (item.after.isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            item.after,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: _muted,
-                              height: 1.4,
                             ),
                           ),
                         ],
