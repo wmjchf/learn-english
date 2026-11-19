@@ -37,24 +37,21 @@ List<LessonToken> orderedTargetTokens(LessonContent content) {
 }
 
 /// 日课「过一遍单词」：底部单词卡，从第一个目标词起依次过完。
-Future<void> showLessonWordWalkthrough({
+/// 返回 `true` 表示完整过完；下滑/点遮罩关闭为 `false`。
+Future<bool> showLessonWordWalkthrough({
   required BuildContext context,
   required LessonContent content,
   required LessonTts tts,
   required void Function(String lemma, {String? gloss}) onKnow,
   required void Function(String lemma, {String? gloss}) onUnknownHighlight,
   int? lessonId,
-  VoidCallback? onFinished,
   /// 当前过词变化：父页据此滚动短文并高亮。
   ValueChanged<String>? onLemmaFocused,
 }) {
   final tokens = orderedTargetTokens(content);
-  if (tokens.isEmpty) {
-    onFinished?.call();
-    return Future.value();
-  }
+  if (tokens.isEmpty) return Future.value(true);
 
-  return showModalBottomSheet<void>(
+  return showModalBottomSheet<bool>(
     context: context,
     useRootNavigator: true,
     isScrollControlled: true,
@@ -71,13 +68,10 @@ Future<void> showLessonWordWalkthrough({
         onKnow: onKnow,
         onUnknownHighlight: onUnknownHighlight,
         onLemmaFocused: onLemmaFocused,
-        onFinished: () {
-          Navigator.of(ctx).pop();
-          onFinished?.call();
-        },
+        onFinished: () => Navigator.of(ctx).pop(true),
       );
     },
-  );
+  ).then((v) => v == true);
 }
 
 class _WalkthroughSheet extends StatefulWidget {

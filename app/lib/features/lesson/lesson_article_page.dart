@@ -214,12 +214,22 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
     if (!mounted) return;
     setState(() {
       _walkingWords = false;
+      _zhExpanded = true;
       _focus
         ..clear()
         ..addAll({
           if (widget.focusLemma != null && widget.focusLemma!.trim().isNotEmpty)
             widget.focusLemma!.trim().toLowerCase(),
         });
+    });
+    // 回到顶部，场景导读重新可见
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeOutCubic,
+      );
     });
   }
 
@@ -281,14 +291,14 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
     });
   }
 
-  void _goWordWalkthrough() {
+  Future<void> _goWordWalkthrough() async {
     final lesson = _lesson;
     if (lesson == null) return;
     if (orderedTargetTokens(lesson.content).isEmpty) {
       AppToast.show(context, '暂无目标词');
       return;
     }
-    showLessonWordWalkthrough(
+    final completed = await showLessonWordWalkthrough(
       context: context,
       content: lesson.content,
       tts: _tts,
@@ -297,13 +307,15 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
       onUnknownHighlight: (lemma, {String? gloss}) =>
           _markUnknown(lemma, gloss: gloss, toast: false),
       onLemmaFocused: _scrollToLemma,
-      onFinished: () {
-        _endWalkthroughFocus();
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _goCloze();
-        });
-      },
     );
+    if (!mounted) return;
+    // 无论过完还是下滑关闭，都恢复场景导读等
+    _endWalkthroughFocus();
+    if (completed) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _goCloze();
+      });
+    }
   }
 
   void _goCloze() {
