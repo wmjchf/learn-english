@@ -91,7 +91,7 @@ theme(中文标题 4-10 字：必须概括本篇短文的具体事件/话题，�
 title(英文短标题，同样要具体、贴合本篇内容与画像),
 scene:{roleBackground(中文1-2句，点明身份与场景),tasks[3]（与阅读短文/点词/回填相关，勿提对话）},
 article:{title(可贴合短文的英文题),zhTitle(title的中文译名，4-12字，具体),zhLead(中文≤40字，只作导读/摘要，不是全文翻译),enPlain(英文70-100词，自然写入全部目标词；纯文本勿加**),zhPlain(必须是 enPlain 的完整忠实中文翻译，一句不漏；禁止照搬 zhLead；目标词对应中文用【】包住，如【搬迁】；勿做成词表)},
-cloze:[{sentence含________,hintZh,answer,before,after}] 恰好8题；answer∈目标词且互不重复
+cloze:[{sentence含________,hintZh,answer,before,after}] 尽量8题（可少）；answer必须∈上方目标词且互不重复；宁缺毋滥，勿编造目标词外的 answer
 
 难度贴合 ${level}；职场自然；禁止只列单词；先想清本篇具体故事再写 theme/title；写完英文后务必另写完整中译。`;
 }
@@ -183,6 +183,7 @@ function normalizeLesson(raw, { targetLemmas, reviewLemmas = [], level, dayIndex
       answer: cleanLemma(asString(c.answer)),
       after: asString(c.after),
     }));
+  // App 已按短文本地组回填；此处只保留合法目标词答案并补齐，避免模型写偏导致整篇校验失败
   cloze = padCloze(cloze, targetLemmas);
 
   // 释义由 bank_words 查库灌入，不依赖模型
@@ -204,10 +205,20 @@ function normalizeLesson(raw, { targetLemmas, reviewLemmas = [], level, dayIndex
   };
 }
 
-/** 模型少给几题时用目标词补齐，减少整篇重跑 */
+/** 丢掉非目标词答案，再用目标词补齐到 8 题，避免模型写偏整篇重跑 */
 function padCloze(cloze, targetLemmas) {
-  const out = [...(cloze || [])].filter((c) => c.answer);
-  const used = new Set(out.map((c) => cleanLemma(c.answer)));
+  const targetSet = new Set(
+    (targetLemmas || []).map(cleanLemma).filter(Boolean),
+  );
+  const out = [];
+  const used = new Set();
+  for (const c of cloze || []) {
+    const a = cleanLemma(c.answer);
+    if (!a || !targetSet.has(a) || used.has(a)) continue;
+    used.add(a);
+    out.push({ ...c, answer: a });
+    if (out.length >= 8) break;
+  }
   for (const raw of targetLemmas || []) {
     if (out.length >= 8) break;
     const a = cleanLemma(raw);
@@ -327,8 +338,10 @@ function validateLesson(lesson, { avoidThemes = [] } = {}) {
   if (!isFaithfulArticleZh(lesson)) {
     errors.push('短文中译缺失或不像完整翻译（疑似导读顶替）');
   }
-  if (!lesson.cloze || lesson.cloze.length < 8) {
-    errors.push(`回填不足 8 题（现 ${lesson.cloze?.length || 0}）`);
+  // App 按短文本地组回填；服务端 cloze 仅兜底，题数随目标词走，不再死卡 8
+  const needCloze = Math.min(8, (lesson.targetLemmas || []).length);
+  if (needCloze > 0 && (!lesson.cloze || lesson.cloze.length < needCloze)) {
+    errors.push(`回填不足 ${needCloze} 题（现 ${lesson.cloze?.length || 0}）`);
   }
 
   const theme = asString(lesson.theme);
@@ -470,22 +483,23 @@ async function generateLessonForUser(
   const reviewLemmas = await wordLifecycleService.pickDueForLesson(userId, {
     limit: wordLifecycleService.IN_ARTICLE_REVIEW_CAP,
   });
-  // 目标词略少更易写进 60–80 词短文（回填仍要 8 个不重复答案）
+  // 目标词略少更易写进短文；复习词不占目标词名额、选词时一并排除
   const newCount = Math.max(
     8,
     Math.min(12, Number(targetCount) || 10) - reviewLemmas.length,
   );
   const usedLemmas = await usedTargetLemmas(userId, { exceptLessonId });
   const cursorOrd = (plan?.cursorOrd || 0) + lemmaOffset;
+  const reviewSet = new Set(reviewLemmas.map(cleanLemma).filter(Boolean));
   const picked = await bankWordService.pickTargetLemmas(
     bankCode,
     cursorOrd,
     newCount,
-    { excludeLemmas: usedLemmas },
+    { excludeLemmas: [...usedLemmas, ...reviewSet] },
   );
-  const targetLemmas = picked.filter(
-    (l) => !reviewLemmas.includes(cleanLemma(l)),
-  );
+  const targetLemmas = picked
+    .map(cleanLemma)
+    .filter((l) => l && !reviewSet.has(l));
 
   const { scenes, jobLabel, interests } = await resolveLabels(profile);
   const avoidThemes = await recentThemesForUser(userId, 12);
