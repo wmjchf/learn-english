@@ -13,7 +13,7 @@
 /// ```
 class ApiConfig {
   static const String localUrl = 'http://127.0.0.1:3002';
-  static const String testUrl = 'http://47.97.67.47:3003';
+  static const String testUrl = 'http://47.99.139.248:3003';
   static const String prodUrl = 'https://wordx.wobufang.com';
 
   static const String _env = String.fromEnvironment(
