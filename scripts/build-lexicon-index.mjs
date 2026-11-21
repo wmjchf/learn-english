@@ -1,7 +1,12 @@
 #!/usr/bin/env node
 /**
- * 从词根词缀全库 + 同形同义汇总生成 App 可查 JSON。
- * 用法：node scripts/build-lexicon-index.mjs
+ * 从自定义路径的词根 MD + 同义 MD 生成中间 JSON。
+ * 日常灌库请用（对齐 bank 的 --file）：
+ *   cd backend && node scripts/import-lexicon-from-md.js --roots=... --synonyms=...
+ *
+ * 用法：
+ *   node scripts/build-lexicon-index.mjs --roots=/path/a.md --synonyms=/path/b.md
+ *   node scripts/build-lexicon-index.mjs --roots=... --synonyms=... --out=/tmp/x.json
  */
 import fs from 'fs';
 import path from 'path';
@@ -9,14 +14,32 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
-const attachDir = path.resolve(
-  process.env.HOME,
-  '.cursor/projects/Users-douge-Desktop-workspace-english-learn/attachments/d461cf73-ae57-4959-82df-b5281fecb536',
-);
 
-const rootMd = path.join(attachDir, '_________A-Z.md');
-const synMd = path.join(attachDir, '_________.md');
-const outPath = path.join(root, 'app/assets/lexicon/lemma_index.json');
+function parseArgs(argv) {
+  const out = {
+    roots: null,
+    synonyms: null,
+    out: path.join(root, 'app/assets/lexicon/lemma_index.json'),
+  };
+  for (const a of argv) {
+    if (a.startsWith('--roots=')) out.roots = path.resolve(a.slice(8).trim());
+    else if (a.startsWith('--synonyms=')) {
+      out.synonyms = path.resolve(a.slice(11).trim());
+    } else if (a.startsWith('--out=')) out.out = path.resolve(a.slice(6).trim());
+  }
+  return out;
+}
+
+const args = parseArgs(process.argv.slice(2));
+if (!args.roots || !args.synonyms) {
+  console.error(
+    '用法: node scripts/build-lexicon-index.mjs --roots=/path/a.md --synonyms=/path/b.md [--out=...]',
+  );
+  process.exit(1);
+}
+const rootMd = args.roots;
+const synMd = args.synonyms;
+const outPath = args.out;
 
 function cleanLemma(s) {
   return String(s || '')
@@ -269,9 +292,14 @@ function compactRoots(roots) {
 }
 
 if (!fs.existsSync(rootMd) || !fs.existsSync(synMd)) {
-  console.error('找不到源 Markdown，请确认 attachments 路径');
+  console.error('找不到源 Markdown:');
+  console.error('  roots =', rootMd, fs.existsSync(rootMd) ? 'OK' : 'MISSING');
+  console.error('  synonyms =', synMd, fs.existsSync(synMd) ? 'OK' : 'MISSING');
   process.exit(1);
 }
+
+console.log(`[lexicon-build] roots=${rootMd}`);
+console.log(`[lexicon-build] synonyms=${synMd}`);
 
 const rootText = fs.readFileSync(rootMd, 'utf8');
 const synText = fs.readFileSync(synMd, 'utf8');
@@ -289,6 +317,5 @@ fs.mkdirSync(path.dirname(outPath), { recursive: true });
 fs.writeFileSync(outPath, JSON.stringify(payload));
 const sizeKb = Math.round(fs.statSync(outPath).size / 1024);
 console.log(
-  `wrote ${outPath} (${sizeKb} KB) roots=${Object.keys(payload.roots).length} lemmas=${Object.keys(payload.lemmas).length}`,
+  `[lexicon-build] wrote ${outPath} (${sizeKb} KB) roots=${Object.keys(payload.roots).length} lemmas=${Object.keys(payload.lemmas).length}`,
 );
-console.log('sample comprehensive:', JSON.stringify(payload.lemmas.comprehensive, null, 2));

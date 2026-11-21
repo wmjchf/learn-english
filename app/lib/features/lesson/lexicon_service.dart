@@ -1,17 +1,30 @@
-import 'dart:convert';
-
-import 'package:flutter/services.dart';
+import 'package:app_starter/core/network/api_client.dart';
 
 class LexiconSynonym {
   const LexiconSynonym({required this.word, this.zh = ''});
   final String word;
   final String zh;
+
+  factory LexiconSynonym.fromJson(Map<String, dynamic> json) {
+    return LexiconSynonym(
+      word: '${json['word'] ?? ''}',
+      zh: '${json['zh'] ?? ''}',
+    );
+  }
 }
 
 class LexiconConfusable {
   const LexiconConfusable({required this.words, required this.note});
   final List<String> words;
   final String note;
+
+  factory LexiconConfusable.fromJson(Map<String, dynamic> json) {
+    final wordsRaw = json['words'];
+    return LexiconConfusable(
+      words: wordsRaw is List ? wordsRaw.map((e) => '$e').toList() : const [],
+      note: '${json['note'] ?? ''}',
+    );
+  }
 }
 
 class LexiconRootFamilyMember {
@@ -23,6 +36,14 @@ class LexiconRootFamilyMember {
   final String word;
   final String breakdown;
   final String gloss;
+
+  factory LexiconRootFamilyMember.fromJson(Map<String, dynamic> json) {
+    return LexiconRootFamilyMember(
+      word: '${json['word'] ?? ''}',
+      breakdown: '${json['breakdown'] ?? ''}',
+      gloss: '${json['gloss'] ?? ''}',
+    );
+  }
 }
 
 class LexiconRoot {
@@ -38,6 +59,26 @@ class LexiconRoot {
   final String meaning;
   final String etym;
   final List<LexiconRootFamilyMember> family;
+
+  factory LexiconRoot.fromJson(Map<String, dynamic> json) {
+    final familyRaw = json['family'];
+    return LexiconRoot(
+      id: '${json['id'] ?? ''}',
+      key: '${json['key'] ?? ''}',
+      meaning: '${json['meaning'] ?? ''}',
+      etym: '${json['etym'] ?? ''}',
+      family: familyRaw is List
+          ? familyRaw
+              .whereType<Map>()
+              .map(
+                (e) => LexiconRootFamilyMember.fromJson(
+                  Map<String, dynamic>.from(e),
+                ),
+              )
+              .toList()
+          : const [],
+    );
+  }
 }
 
 class LexiconEntry {
@@ -83,110 +124,69 @@ class LexiconEntry {
     }
     return parts.join('　');
   }
+
+  factory LexiconEntry.fromJson(Map<String, dynamic> json) {
+    final synRaw = json['synonyms'];
+    final confRaw = json['confusables'];
+    final senseRaw = json['senses'];
+    final rootRaw = json['root'];
+    return LexiconEntry(
+      lemma: '${json['lemma'] ?? ''}',
+      breakdown: '${json['breakdown'] ?? ''}',
+      gloss: '${json['gloss'] ?? ''}',
+      rootId: '${json['rootId'] ?? ''}',
+      synonyms: synRaw is List
+          ? synRaw
+              .whereType<Map>()
+              .map((e) => LexiconSynonym.fromJson(Map<String, dynamic>.from(e)))
+              .toList()
+          : const [],
+      confusables: confRaw is List
+          ? confRaw
+              .whereType<Map>()
+              .map(
+                (e) => LexiconConfusable.fromJson(Map<String, dynamic>.from(e)),
+              )
+              .toList()
+          : const [],
+      senses: senseRaw is List ? senseRaw.map((e) => '$e').toList() : const [],
+      root: rootRaw is Map
+          ? LexiconRoot.fromJson(Map<String, dynamic>.from(rootRaw))
+          : null,
+    );
+  }
 }
 
-/// 本地词根 / 同义 / 易混索引（assets/lexicon/lemma_index.json）。
+/// 词根 / 同义 / 易混：走后端 `GET /api/lexicon/:lemma`，进程内缓存。
 class LexiconService {
   LexiconService._();
   static final LexiconService instance = LexiconService._();
 
-  Map<String, dynamic>? _roots;
-  Map<String, dynamic>? _lemmas;
-  Future<void>? _loading;
-
-  Future<void> ensureLoaded() {
-    if (_lemmas != null) return Future.value();
-    return _loading ??= _load();
-  }
-
-  Future<void> _load() async {
-    final raw = await rootBundle.loadString('assets/lexicon/lemma_index.json');
-    final json = jsonDecode(raw) as Map<String, dynamic>;
-    _roots = Map<String, dynamic>.from(json['roots'] as Map? ?? {});
-    _lemmas = Map<String, dynamic>.from(json['lemmas'] as Map? ?? {});
-  }
-
-  LexiconRoot? _parseRoot(String id) {
-    final raw = _roots?[id];
-    if (raw is! Map) return null;
-    final familyRaw = raw['f'];
-    final family = <LexiconRootFamilyMember>[];
-    if (familyRaw is List) {
-      for (final row in familyRaw) {
-        if (row is! List || row.isEmpty) continue;
-        family.add(
-          LexiconRootFamilyMember(
-            word: '${row[0]}',
-            breakdown: row.length > 1 ? '${row[1]}' : '',
-            gloss: row.length > 2 ? '${row[2]}' : '',
-          ),
-        );
-      }
-    }
-    return LexiconRoot(
-      id: id,
-      key: '${raw['k'] ?? ''}',
-      meaning: '${raw['m'] ?? ''}',
-      etym: '${raw['e'] ?? ''}',
-      family: family,
-    );
-  }
+  final ApiClient _api = ApiClient();
+  final Map<String, LexiconEntry?> _cache = {};
 
   Future<LexiconEntry?> lookup(String lemma) async {
-    await ensureLoaded();
     final key = lemma.trim().toLowerCase().replaceAll(RegExp(r"[^a-z'-]"), '');
     if (key.isEmpty) return null;
-    final raw = _lemmas?[key];
-    if (raw is! Map) return null;
+    if (_cache.containsKey(key)) return _cache[key];
 
-    final synonyms = <LexiconSynonym>[];
-    final synRaw = raw['s'];
-    if (synRaw is List) {
-      for (final row in synRaw) {
-        if (row is List && row.isNotEmpty) {
-          synonyms.add(
-            LexiconSynonym(
-              word: '${row[0]}',
-              zh: row.length > 1 ? '${row[1]}' : '',
-            ),
-          );
-        }
+    try {
+      final json = await _api.get(
+        '/api/lexicon/${Uri.encodeComponent(key)}',
+        authed: true,
+      );
+      final raw = json['entry'];
+      if (raw is! Map) {
+        _cache[key] = null;
+        return null;
       }
+      final entry = LexiconEntry.fromJson(Map<String, dynamic>.from(raw));
+      _cache[key] = entry;
+      return entry;
+    } catch (_) {
+      // 离线 / 未灌库时不打断点词主流程
+      _cache[key] = null;
+      return null;
     }
-
-    final confusables = <LexiconConfusable>[];
-    final confRaw = raw['c'];
-    if (confRaw is List) {
-      for (final row in confRaw) {
-        if (row is! List || row.length < 2) continue;
-        final wordsRaw = row[0];
-        final words = wordsRaw is List
-            ? wordsRaw.map((e) => '$e').toList()
-            : <String>[];
-        confusables.add(
-          LexiconConfusable(words: words, note: '${row[1]}'),
-        );
-      }
-    }
-
-    final senses = <String>[];
-    final senseRaw = raw['m'];
-    if (senseRaw is List) {
-      for (final s in senseRaw) {
-        senses.add('$s');
-      }
-    }
-
-    final rootId = '${raw['r'] ?? ''}';
-    return LexiconEntry(
-      lemma: key,
-      breakdown: '${raw['b'] ?? ''}',
-      gloss: '${raw['g'] ?? ''}',
-      rootId: rootId,
-      synonyms: synonyms,
-      confusables: confusables,
-      senses: senses,
-      root: rootId.isEmpty ? null : _parseRoot(rootId),
-    );
   }
 }

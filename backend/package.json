@@ -14,7 +14,11 @@
     "db:migrate": "node scripts/migrate.js",
     "db:seed-words": "node scripts/seed-bank-words.js",
     "db:reshuffle-words": "node scripts/seed-bank-words.js --reshuffle",
-    "db:seed-gloss": "node scripts/seed-word-gloss.js"
+    "db:import-md": "node scripts/import-bank-from-md.js",
+    "db:seed-gloss": "node scripts/seed-word-gloss.js",
+    "db:seed-lexicon": "node scripts/seed-lexicon-from-json.js",
+    "db:import-lexicon": "node scripts/import-lexicon-from-md.js",
+    "db:sync-lexicon": "node scripts/sync-lexicon.js"
   },
   "license": "ISC",
   "dependencies": {
