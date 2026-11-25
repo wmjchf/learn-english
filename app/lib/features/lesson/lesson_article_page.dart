@@ -585,12 +585,7 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
                               ZhMarkedText(
                                 text: article.zhDisplay,
                                 fontSize: 16,
-                                extraHighlights: glossHighlightPhrases(
-                                  lesson.content.targetLemmas.map(
-                                    (l) =>
-                                        lesson.content.defFor(l)?.gloss ?? '',
-                                  ),
-                                ),
+                                // 中文高亮只认成文注入的【】（由 targetZh 映射生成），不用释义扫字
                               ),
                             ],
                           ],

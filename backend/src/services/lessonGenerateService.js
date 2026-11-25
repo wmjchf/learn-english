@@ -85,12 +85,14 @@ function buildPrompt({
 - 中译必须忠实：zhPlain 是对 enPlain 的完整翻译，禁止摘要、改写剧情、用导读顶替；长度应覆盖原文信息点
 - 英文正文禁止 Markdown：不要用 **word** 或 *word* 包目标词（App 会自行高亮）
 - 禁止输出 dialog、turns、对话台词等字段
+- targetZh（必填）：为每个目标词给出它在本篇 zhPlain 中的「完整中文对应」（搭配/短语也要写全）。例：{"little":"几乎没有","relocate":"搬迁"}。zhPlain 正文里必须能原文出现这些中文（可先不写【】，服务端会按 targetZh 自动加【】）
 
 字段：
 theme(中文标题 4-10 字：必须概括本篇短文的具体事件/话题，且能看出职业或场景；内容不同则 theme 必须不同；禁止「今日职场」「商务英语」「职场沟通」等空泛词),
 title(英文短标题，同样要具体、贴合本篇内容与画像),
 scene:{roleBackground(中文1-2句，点明身份与场景),tasks[3]（与阅读短文/点词/回填相关，勿提对话）},
-article:{title(可贴合短文的英文题),zhTitle(title的中文译名，4-12字，具体),zhLead(中文≤40字，只作导读/摘要，不是全文翻译),enPlain(英文70-100词，自然写入全部目标词；纯文本勿加**),zhPlain(必须是 enPlain 的完整忠实中文翻译，一句不漏；禁止照搬 zhLead；目标词对应中文用【】包住，如【搬迁】；勿做成词表)},
+article:{title(可贴合短文的英文题),zhTitle(title的中文译名，4-12字，具体),zhLead(中文≤40字，只作导读/摘要，不是全文翻译),enPlain(英文70-100词，自然写入全部目标词；纯文本勿加**),zhPlain(必须是 enPlain 的完整忠实中文翻译，一句不漏；禁止照搬 zhLead；勿做成词表)},
+targetZh:{<目标lemma>:<该词在本篇中文里的完整对应>} 必须覆盖全部目标词,
 cloze:[{sentence含________,hintZh,answer,before,after}] 尽量8题（可少）；answer必须∈上方目标词且互不重复；宁缺毋滥，勿编造目标词外的 answer
 
 难度贴合 ${level}；职场自然；禁止只列单词；先想清本篇具体故事再写 theme/title；写完英文后务必另写完整中译。`;
@@ -151,6 +153,12 @@ function normalizeLesson(raw, { targetLemmas, reviewLemmas = [], level, dayIndex
   // 勿用 zhLead 顶替 zhPlain：导读当译文会造成「翻译不准」
   let zhPlain = asString(raw.article?.zhPlain || raw.article?.zh_plain);
   if (zhPlain && zhLead && zhPlain === zhLead) zhPlain = '';
+  const targetZh = normalizeTargetZh(
+    raw.targetZh || raw.target_zh || raw.article?.targetZh,
+    targetLemmas,
+  );
+  // 不靠模型手写【】，按 targetZh 映射统一注入，避免包成「有/没有」残缺
+  zhPlain = applyTargetZhMarks(zhPlain, targetZh);
   const theme = refineTheme(raw.theme, zhLead || zhPlain);
   const articleTitle = asString(raw.article?.title, title);
   let zhTitle = asString(raw.article?.zhTitle || raw.article?.zh_title);
@@ -200,9 +208,54 @@ function normalizeLesson(raw, { targetLemmas, reviewLemmas = [], level, dayIndex
     dialog,
     cloze,
     targetLemmas,
+    targetZh,
     reviewLemmas: (reviewLemmas || []).map(cleanLemma).filter(Boolean),
     defs,
   };
+}
+
+/** 解析模型给的 lemma→中文完整对应 */
+function normalizeTargetZh(raw, targetLemmas) {
+  const out = {};
+  const src =
+    raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+  for (const [k, v] of Object.entries(src)) {
+    const lemma = cleanLemma(k);
+    const zh = asString(v).replace(/【|】/g, '');
+    if (!lemma || !zh) continue;
+    out[lemma] = zh;
+  }
+  // 保证 key 都是目标词；忽略无关项
+  const allowed = new Set((targetLemmas || []).map(cleanLemma).filter(Boolean));
+  for (const k of Object.keys(out)) {
+    if (!allowed.has(k)) delete out[k];
+  }
+  return out;
+}
+
+/** 去掉旧【】后，按译法从长到短包一次，避免短串抢先匹配 */
+function stripZhMarks(zhPlain) {
+  return asString(zhPlain).replace(/【([^】]*)】/g, '$1');
+}
+
+function applyTargetZhMarks(zhPlain, targetZh) {
+  let text = stripZhMarks(zhPlain);
+  if (!text || !targetZh || !Object.keys(targetZh).length) return text;
+
+  const phrases = [
+    ...new Set(Object.values(targetZh).map((z) => asString(z)).filter(Boolean)),
+  ].sort((a, b) => b.length - a.length);
+
+  for (const phrase of phrases) {
+    if (!phrase || text.includes(`【${phrase}】`)) continue;
+    const idx = text.indexOf(phrase);
+    if (idx < 0) continue;
+    text =
+      text.slice(0, idx) +
+      `【${phrase}】` +
+      text.slice(idx + phrase.length);
+  }
+  return text;
 }
 
 /** 丢掉非目标词答案，再用目标词补齐到 8 题，避免模型写偏整篇重跑 */
@@ -299,10 +352,10 @@ async function ensureFaithfulTranslations(lesson) {
   const targets = (lesson.targetLemmas || []).join(', ');
   const userParts = [
     '只做忠实中文翻译。禁止摘要、禁止改写剧情、禁止用导读代替。',
-    '目标词对应的中文请用【】包住。',
+    '同时给出 targetZh：每个目标词 → 它在本篇中文里的完整对应（须能在 zhPlain 原文中找到）。',
     targets ? `目标词：${targets}` : '',
-    `短文英文 enPlain：\n${lesson.article.enPlain}\n请输出完整中译到 zhPlain。`,
-    '返回 JSON：{"zhPlain":"..."}',
+    `短文英文 enPlain：\n${lesson.article.enPlain}\n请输出完整中译。`,
+    '返回 JSON：{"zhPlain":"...","targetZh":{"lemma":"完整中文对应"}}',
   ]
     .filter(Boolean)
     .join('\n\n');
@@ -323,11 +376,71 @@ async function ensureFaithfulTranslations(lesson) {
   const raw = parseJsonContent(result.content);
   let fixed = false;
   const zh = asString(raw.zhPlain || raw.zh_plain);
+  const targetZh = normalizeTargetZh(
+    raw.targetZh || raw.target_zh,
+    lesson.targetLemmas,
+  );
   if (zh && (!lesson.article.zhLead || zh !== lesson.article.zhLead)) {
-    lesson.article.zhPlain = zh;
+    lesson.article.zhPlain = applyTargetZhMarks(zh, {
+      ...(lesson.targetZh || {}),
+      ...targetZh,
+    });
+    lesson.targetZh = {
+      ...(lesson.targetZh || {}),
+      ...targetZh,
+    };
+    fixed = true;
+  } else if (Object.keys(targetZh).length) {
+    lesson.targetZh = { ...(lesson.targetZh || {}), ...targetZh };
+    lesson.article.zhPlain = applyTargetZhMarks(
+      lesson.article.zhPlain,
+      lesson.targetZh,
+    );
     fixed = true;
   }
   return { fixed, latencyMs: result.latencyMs, model: result.model };
+}
+
+/**
+ * 用 targetZh 映射校验：每个目标词都有完整中文对应，且能在译文中找到。
+ * 不再用虚词黑名单列举。
+ */
+function validateZhTargetMarks(lesson) {
+  const errors = [];
+  const targets = (lesson.targetLemmas || []).map(cleanLemma).filter(Boolean);
+  if (!targets.length) return errors;
+
+  const map = lesson.targetZh || {};
+  const zhBody = stripZhMarks(lesson.article?.zhPlain || '');
+  const missing = [];
+  const notInText = [];
+  const tooShort = [];
+
+  for (const lemma of targets) {
+    const zh = asString(map[lemma]);
+    if (!zh) {
+      missing.push(lemma);
+      continue;
+    }
+    if (zh.length < 2) {
+      tooShort.push(`${lemma}=${zh}`);
+      continue;
+    }
+    if (!zhBody.includes(zh)) {
+      notInText.push(`${lemma}=${zh}`);
+    }
+  }
+
+  if (missing.length) {
+    errors.push(`缺 targetZh: ${missing.slice(0, 6).join(', ')}`);
+  }
+  if (tooShort.length) {
+    errors.push(`targetZh 过短: ${tooShort.slice(0, 5).join('、')}`);
+  }
+  if (notInText.length) {
+    errors.push(`targetZh 未出现在中译: ${notInText.slice(0, 5).join('、')}`);
+  }
+  return errors;
 }
 
 function validateLesson(lesson, { avoidThemes = [] } = {}) {
@@ -338,6 +451,7 @@ function validateLesson(lesson, { avoidThemes = [] } = {}) {
   if (!isFaithfulArticleZh(lesson)) {
     errors.push('短文中译缺失或不像完整翻译（疑似导读顶替）');
   }
+  errors.push(...validateZhTargetMarks(lesson));
   // App 按短文本地组回填；服务端 cloze 仅兜底，题数随目标词走，不再死卡 8
   const needCloze = Math.min(8, (lesson.targetLemmas || []).length);
   if (needCloze > 0 && (!lesson.cloze || lesson.cloze.length < needCloze)) {

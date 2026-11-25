@@ -117,7 +117,7 @@ class _Seg {
   final bool hl;
 }
 
-/// 从释义里抽可用于标亮的中文片段。
+/// 从释义里抽可用于标亮的中文片段（短文页已不用；保留给其它入口）。
 List<String> glossHighlightPhrases(Iterable<String> glosses) {
   final out = <String>{};
   for (final raw in glosses) {
