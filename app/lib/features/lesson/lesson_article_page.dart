@@ -409,6 +409,30 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
                 onBack: _back,
               ),
               if (!_walkingWords) ...[
+                if (scene.tasksDisplay.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _sceneBg,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: _sceneBorder),
+                    ),
+                    child: Text(
+                      scene.tasksDisplay,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: _task,
+                        height: 18 / 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 8),
                 Row(
                   children: [
@@ -493,17 +517,6 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
                           height: 20 / 14,
                         ),
                       ),
-                      if (scene.tasksDisplay.isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          scene.tasksDisplay,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: _task,
-                            height: 18 / 13,
-                          ),
-                        ),
-                      ],
                     ],
                   ),
                 ),

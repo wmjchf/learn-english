@@ -112,11 +112,11 @@ class LessonScene {
     );
   }
 
-  /// 任务行：① a ② b ③ c
+  /// 学习步骤行：① a ② b ③ c
   String get tasksDisplay {
     if (tasks.isEmpty) return '';
     const marks = ['①', '②', '③', '④', '⑤'];
-    final buf = StringBuffer('任务：');
+    final buf = StringBuffer('学习步骤：');
     for (var i = 0; i < tasks.length; i++) {
       if (i > 0) buf.write(' ');
       buf.write('${marks[i.clamp(0, marks.length - 1)]} ${tasks[i]}');
