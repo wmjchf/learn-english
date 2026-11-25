@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:app_starter/features/onboarding/assess_models.dart';
 import 'package:app_starter/features/onboarding/bank_select_page.dart';
 import 'package:app_starter/features/shell/main_shell.dart';
+import 'package:app_starter/core/ui/app_buttons.dart';
 
 /// 定级结果：对齐 Figma Phone/定级（居中大字 + 双水平卡 + 底部 CTA）。
 class AssessResultPage extends StatelessWidget {
@@ -181,9 +182,9 @@ class AssessResultPage extends StatelessWidget {
               SizedBox(
                 width: double.infinity,
                 height: 54,
-                child: FilledButton(
+                child: AppFilledButton(
                   onPressed: () => _goNext(context),
-                  style: FilledButton.styleFrom(
+                  style: AppFilledButton.styleFrom(
                     backgroundColor: _blue,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),

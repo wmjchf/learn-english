@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:app_starter/core/ui/app_haptics.dart';
 import 'package:app_starter/features/library/library_page.dart';
 import 'package:app_starter/features/shell/me_page.dart';
 import 'package:app_starter/features/today/today_page.dart';
@@ -106,7 +107,7 @@ class _TabItem extends StatelessWidget {
     return Expanded(
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: onTap,
+        onTap: withHaptic(onTap, select: true),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 2),
           child: Column(

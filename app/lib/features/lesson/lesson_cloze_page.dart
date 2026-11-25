@@ -6,6 +6,8 @@ import 'package:app_starter/features/lesson/lesson_tts.dart';
 import 'package:app_starter/features/lesson/sentence_cloze.dart';
 import 'package:app_starter/features/lesson/word_repository.dart';
 import 'package:app_starter/features/shell/main_shell.dart';
+import 'package:app_starter/core/ui/app_buttons.dart';
+import 'package:app_starter/core/ui/app_haptics.dart';
 
 /// 例句闭眼回填：一页一句；同句多词合填。
 /// 填错先展示正确答案再进下一题；本轮走完后只刷错题，直到全对再打卡。
@@ -339,7 +341,7 @@ class _LessonClozePageState extends State<LessonClozePage> {
         backgroundColor: _bg,
         body: SafeArea(
           child: Center(
-            child: TextButton(
+            child: AppTextButton(
               onPressed: () => Navigator.of(context).pop(),
               child: const Text('暂无回填题，返回'),
             ),
@@ -373,8 +375,9 @@ class _LessonClozePageState extends State<LessonClozePage> {
               child: Row(
                 children: [
                   GestureDetector(
-                    onTap:
-                        _submitting ? null : () => Navigator.of(context).pop(),
+                    onTap: withHaptic(
+                      _submitting ? null : () => Navigator.of(context).pop(),
+                    ),
                     behavior: HitTestBehavior.opaque,
                     child: const Row(
                       children: [
@@ -656,7 +659,7 @@ class _LessonClozePageState extends State<LessonClozePage> {
                                           ),
                                         ),
                                       ),
-                                      IconButton(
+                                      AppIconButton(
                                         tooltip: '朗读',
                                         onPressed: () => _tts
                                             .speakWord(page.blanks[i].surface),
@@ -685,9 +688,9 @@ class _LessonClozePageState extends State<LessonClozePage> {
               child: SizedBox(
                 width: double.infinity,
                 height: 48,
-                child: FilledButton(
+                child: AppFilledButton(
                   onPressed: (_submitting || _advancing) ? null : _onCta,
-                  style: FilledButton.styleFrom(
+                  style: AppFilledButton.styleFrom(
                     backgroundColor: _blue,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),

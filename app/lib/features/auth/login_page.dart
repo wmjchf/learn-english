@@ -6,6 +6,7 @@ import 'package:app_starter/core/network/api_client.dart';
 import 'package:app_starter/core/ui/app_toast.dart';
 import 'package:app_starter/features/auth/auth_repository.dart';
 import 'package:app_starter/features/onboarding/onboarding_nav.dart';
+import 'package:app_starter/core/ui/app_buttons.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key, this.authRepository});
@@ -142,7 +143,7 @@ class _LoginPageState extends State<LoginPage> {
         backgroundColor: _bg,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
-        leading: IconButton(
+        leading: AppIconButton(
           icon: const Icon(Icons.chevron_left, color: _blue, size: 32),
           onPressed: () => Navigator.of(context).maybePop(),
         ),
@@ -195,10 +196,10 @@ class _LoginPageState extends State<LoginPage> {
                   const SizedBox(width: 12),
                   SizedBox(
                     height: 56,
-                    child: OutlinedButton(
+                    child: AppOutlinedButton(
                       onPressed:
                           _countdown > 0 || _sending ? null : _onSendCode,
-                      style: OutlinedButton.styleFrom(
+                      style: AppOutlinedButton.styleFrom(
                         foregroundColor: _blue,
                         side: const BorderSide(color: Color(0xFFD9F99D)),
                         shape: RoundedRectangleBorder(
@@ -250,9 +251,9 @@ class _LoginPageState extends State<LoginPage> {
               const SizedBox(height: 28),
               SizedBox(
                 height: 52,
-                child: FilledButton(
+                child: AppFilledButton(
                   onPressed: _loggingIn ? null : _onLogin,
-                  style: FilledButton.styleFrom(
+                  style: AppFilledButton.styleFrom(
                     backgroundColor: _blue,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),

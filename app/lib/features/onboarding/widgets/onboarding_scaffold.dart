@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:app_starter/core/ui/app_buttons.dart';
 
 class OnboardingScaffold extends StatelessWidget {
   const OnboardingScaffold({
@@ -38,7 +39,7 @@ class OnboardingScaffold extends StatelessWidget {
         backgroundColor: bg,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
-        leading: IconButton(
+        leading: AppIconButton(
           icon: const Icon(Icons.chevron_left, color: blue, size: 32),
           onPressed: onBack,
         ),
@@ -79,9 +80,9 @@ class OnboardingScaffold extends StatelessWidget {
               const SizedBox(height: 16),
               SizedBox(
                 height: 52,
-                child: FilledButton(
+                child: AppFilledButton(
                   onPressed: canSubmit ? onCta : null,
-                  style: FilledButton.styleFrom(
+                  style: AppFilledButton.styleFrom(
                     backgroundColor: blue,
                     disabledBackgroundColor: const Color(0xFFD9F99D),
                     shape: RoundedRectangleBorder(

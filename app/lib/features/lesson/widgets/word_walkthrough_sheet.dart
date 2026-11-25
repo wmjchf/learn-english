@@ -5,6 +5,8 @@ import 'package:app_starter/features/lesson/lesson_tts.dart';
 import 'package:app_starter/features/lesson/lexicon_service.dart';
 import 'package:app_starter/features/lesson/word_repository.dart';
 import 'package:app_starter/features/lesson/widgets/lexicon_extras.dart';
+import 'package:app_starter/core/ui/app_buttons.dart';
+import 'package:app_starter/core/ui/app_haptics.dart';
 
 /// 按短文出现顺序收集目标词；未入文的目标词补在末尾。
 List<LessonToken> orderedTargetTokens(LessonContent content) {
@@ -514,7 +516,9 @@ class _WalkthroughSheetState extends State<_WalkthroughSheet> {
                 ),
               ),
               GestureDetector(
-                onTap: (_loading || _busy) ? null : _markKnowOnly,
+                onTap: withHaptic(
+                  (_loading || _busy) ? null : _markKnowOnly,
+                ),
                 behavior: HitTestBehavior.opaque,
                 child: Padding(
                   padding: const EdgeInsets.only(left: 8, top: 4),
@@ -550,11 +554,11 @@ class _WalkthroughSheetState extends State<_WalkthroughSheet> {
               Expanded(
                 child: SizedBox(
                   height: 48,
-                  child: OutlinedButton(
+                  child: AppOutlinedButton(
                     onPressed: speakText.isEmpty
                         ? null
                         : () => widget.tts.speakWord(speakText),
-                    style: OutlinedButton.styleFrom(
+                    style: AppOutlinedButton.styleFrom(
                       foregroundColor: _text,
                       side: const BorderSide(color: _border),
                       shape: RoundedRectangleBorder(
@@ -575,9 +579,9 @@ class _WalkthroughSheetState extends State<_WalkthroughSheet> {
               Expanded(
                 child: SizedBox(
                   height: 48,
-                  child: FilledButton(
+                  child: AppFilledButton(
                     onPressed: (_loading || _busy) ? null : _continueNext,
-                    style: FilledButton.styleFrom(
+                    style: AppFilledButton.styleFrom(
                       backgroundColor: _blue,
                       disabledBackgroundColor: const Color(0xFFD9F99D),
                       shape: RoundedRectangleBorder(

@@ -8,6 +8,8 @@ import 'package:app_starter/features/onboarding/self_assess_page.dart';
 import 'package:app_starter/features/profile/edit_profile_page.dart';
 import 'package:app_starter/features/profile/me_models.dart';
 import 'package:app_starter/features/profile/me_repository.dart';
+import 'package:app_starter/core/ui/app_buttons.dart';
+import 'package:app_starter/core/ui/app_haptics.dart';
 
 /// 我的 Tab：对齐 Figma Phone/我的。
 class MePage extends StatefulWidget {
@@ -115,12 +117,12 @@ class _MePageState extends State<MePage> {
                 const SizedBox(height: 20),
                 SizedBox(
                   height: 48,
-                  child: OutlinedButton(
+                  child: AppOutlinedButton(
                     onPressed: () async {
                       Navigator.of(ctx).pop();
                       await _logout();
                     },
-                    style: OutlinedButton.styleFrom(
+                    style: AppOutlinedButton.styleFrom(
                       foregroundColor: _blue,
                       side: const BorderSide(color: _border),
                       shape: RoundedRectangleBorder(
@@ -137,7 +139,7 @@ class _MePageState extends State<MePage> {
                   ),
                 ),
                 const SizedBox(height: 10),
-                TextButton(
+                AppTextButton(
                   onPressed: () {
                     Navigator.of(ctx).pop();
                     _confirmDeleteAccount();
@@ -165,13 +167,13 @@ class _MePageState extends State<MePage> {
             '将永久删除账号、学习画像、日课、生词与登录信息，且无法恢复。同一手机号之后可重新注册。\n\n若仅换设备，请选择「退出登录」。',
           ),
           actions: [
-            TextButton(
+            AppTextButton(
               onPressed: () => Navigator.of(ctx).pop(false),
               child: const Text('取消'),
             ),
-            TextButton(
+            AppTextButton(
               onPressed: () => Navigator.of(ctx).pop(true),
-              style: TextButton.styleFrom(foregroundColor: const Color(0xFFDC2626)),
+              style: AppTextButton.styleFrom(foregroundColor: const Color(0xFFDC2626)),
               child: const Text('注销'),
             ),
           ],
@@ -223,7 +225,7 @@ class _MePageState extends State<MePage> {
                         children: [
                           Text(_error!, textAlign: TextAlign.center),
                           const SizedBox(height: 12),
-                          FilledButton(
+                          AppFilledButton(
                             onPressed: _load,
                             child: const Text('重试'),
                           ),
@@ -368,9 +370,9 @@ class _HeroCard extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             height: 48,
-            child: FilledButton(
+            child: AppFilledButton(
               onPressed: onEdit,
-              style: FilledButton.styleFrom(
+              style: AppFilledButton.styleFrom(
                 backgroundColor: Colors.white,
                 foregroundColor: AppColors.accent,
                 shape: RoundedRectangleBorder(
@@ -465,7 +467,7 @@ class _SettingRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: onTap,
+      onTap: withHaptic(onTap),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(

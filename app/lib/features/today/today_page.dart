@@ -7,6 +7,7 @@ import 'package:app_starter/features/lesson/widgets/lesson_generating_view.dart'
 import 'package:app_starter/features/today/today_models.dart';
 import 'package:app_starter/features/today/today_repository.dart';
 import 'package:app_starter/features/vocab/review_page.dart';
+import 'package:app_starter/core/ui/app_buttons.dart';
 
 /// 今日 Tab：对齐 Figma Phone/今日。
 class TodayPage extends StatefulWidget {
@@ -144,7 +145,7 @@ class _TodayPageState extends State<TodayPage> {
                         children: [
                           Text(_error!, textAlign: TextAlign.center),
                           const SizedBox(height: 12),
-                          FilledButton(
+                          AppFilledButton(
                             onPressed: () => _load(),
                             child: const Text('重试'),
                           ),
@@ -400,9 +401,9 @@ class _ReviewRow extends StatelessWidget {
           if (hasDue)
             SizedBox(
               height: 40,
-              child: FilledButton(
+              child: AppFilledButton(
                 onPressed: onReview,
-                style: FilledButton.styleFrom(
+                style: AppFilledButton.styleFrom(
                   backgroundColor: _blue,
                   padding: const EdgeInsets.symmetric(horizontal: 18),
                   shape: RoundedRectangleBorder(
@@ -496,9 +497,9 @@ class _HeroCard extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             height: 48,
-            child: FilledButton(
+            child: AppFilledButton(
               onPressed: onStart,
-              style: FilledButton.styleFrom(
+              style: AppFilledButton.styleFrom(
                 backgroundColor: Colors.white,
                 foregroundColor: AppColors.accent,
                 shape: RoundedRectangleBorder(

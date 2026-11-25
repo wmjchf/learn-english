@@ -6,6 +6,8 @@ import 'package:app_starter/features/lesson/lesson_repository.dart';
 import 'package:app_starter/features/vocab/review_page.dart';
 import 'package:app_starter/features/vocab/vocab_models.dart';
 import 'package:app_starter/features/vocab/vocab_repository.dart';
+import 'package:app_starter/core/ui/app_buttons.dart';
+import 'package:app_starter/core/ui/app_haptics.dart';
 
 /// 生词本 Tab：对齐 Figma Phone/生词本。
 class VocabPage extends StatefulWidget {
@@ -111,7 +113,7 @@ class _VocabPageState extends State<VocabPage> {
                         children: [
                           Text(_error!, textAlign: TextAlign.center),
                           const SizedBox(height: 12),
-                          FilledButton(
+                          AppFilledButton(
                             onPressed: _load,
                             child: const Text('重试'),
                           ),
@@ -247,9 +249,9 @@ class _DueHero extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               height: 48,
-              child: FilledButton(
+              child: AppFilledButton(
                 onPressed: onStart,
-                style: FilledButton.styleFrom(
+                style: AppFilledButton.styleFrom(
                   backgroundColor: Colors.white,
                   foregroundColor: AppColors.accent,
                   shape: RoundedRectangleBorder(
@@ -320,7 +322,7 @@ class _Chip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: withHaptic(onTap),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
@@ -370,7 +372,7 @@ class _WordRow extends StatelessWidget {
       color: Colors.white,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
-        onTap: onTap,
+        onTap: withHaptic(onTap),
         borderRadius: BorderRadius.circular(16),
         child: Container(
           constraints: const BoxConstraints(minHeight: 88),

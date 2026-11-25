@@ -13,6 +13,8 @@ import 'package:app_starter/features/profile/me_models.dart';
 import 'package:app_starter/features/profile/me_repository.dart';
 import 'package:app_starter/features/profile/profile_repository.dart';
 import 'package:app_starter/features/profile/user_profile.dart';
+import 'package:app_starter/core/ui/app_buttons.dart';
+import 'package:app_starter/core/ui/app_haptics.dart';
 
 /// 编辑画像：对齐 Figma Phone/画像。
 class EditProfilePage extends StatefulWidget {
@@ -176,11 +178,11 @@ class _EditProfilePageState extends State<EditProfilePage> {
         title: Text(delta > 0 ? '升一档到 $next？' : '降一档到 $next？'),
         content: const Text('只影响之后生成的文章难度，历史不回溯。能力水平不变。'),
         actions: [
-          TextButton(
+          AppTextButton(
             onPressed: () => Navigator.pop(ctx, false),
             child: const Text('取消'),
           ),
-          FilledButton(
+          AppFilledButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('确认'),
           ),
@@ -339,11 +341,11 @@ class _EditProfilePageState extends State<EditProfilePage> {
         title: Text('切换到「${picked.title}」？'),
         content: const Text('切换后会重算预估天数；已学进度按词保留，不按旧计划天数回溯。'),
         actions: [
-          TextButton(
+          AppTextButton(
             onPressed: () => Navigator.pop(ctx, false),
             child: const Text('取消'),
           ),
-          FilledButton(
+          AppFilledButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('确认切换'),
           ),
@@ -438,11 +440,11 @@ class _EditProfilePageState extends State<EditProfilePage> {
               padding: const EdgeInsets.fromLTRB(8, 4, 16, 0),
               child: Row(
                 children: [
-                  TextButton.icon(
+                  AppTextButton.icon(
                     onPressed: () => Navigator.of(context).pop(_changed),
                     icon: const Icon(Icons.chevron_left, size: 28),
                     label: const Text('返回'),
-                    style: TextButton.styleFrom(
+                    style: AppTextButton.styleFrom(
                       foregroundColor: _blue,
                       textStyle: const TextStyle(
                         fontSize: 16,
@@ -467,7 +469,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                               children: [
                                 Text(_error!, textAlign: TextAlign.center),
                                 const SizedBox(height: 12),
-                                FilledButton(
+                                AppFilledButton(
                                   onPressed: _load,
                                   child: const Text('重试'),
                                 ),
@@ -743,9 +745,9 @@ class _LevelCard extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: OutlinedButton(
+                      child: AppOutlinedButton(
                         onPressed: canDown ? onDown : null,
-                        style: OutlinedButton.styleFrom(
+                        style: AppOutlinedButton.styleFrom(
                           foregroundColor: _EditProfilePageState._blue,
                           side: const BorderSide(color: Color(0xFFECFCCB)),
                           backgroundColor: _EditProfilePageState._bg,
@@ -765,9 +767,9 @@ class _LevelCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 10),
                     Expanded(
-                      child: OutlinedButton(
+                      child: AppOutlinedButton(
                         onPressed: canUp ? onUp : null,
-                        style: OutlinedButton.styleFrom(
+                        style: AppOutlinedButton.styleFrom(
                           foregroundColor: _EditProfilePageState._blue,
                           side: const BorderSide(color: Color(0xFFECFCCB)),
                           backgroundColor: _EditProfilePageState._bg,
@@ -894,7 +896,7 @@ class _NavRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: onTap,
+      onTap: withHaptic(onTap),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
@@ -1127,7 +1129,7 @@ class _MultiPickerSheetState extends State<_MultiPickerSheet> {
           const SizedBox(height: 16),
           SizedBox(
             height: 48,
-            child: FilledButton(
+            child: AppFilledButton(
               onPressed: !_canSave
                   ? null
                   : () => Navigator.pop(
@@ -1137,7 +1139,7 @@ class _MultiPickerSheetState extends State<_MultiPickerSheet> {
                           raw: _needsCustom ? _raw.text.trim() : null,
                         ),
                       ),
-              style: FilledButton.styleFrom(
+              style: AppFilledButton.styleFrom(
                 backgroundColor: _EditProfilePageState._blue,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -1325,7 +1327,7 @@ class _JobPickerSheetState extends State<_JobPickerSheet> {
           const SizedBox(height: 16),
           SizedBox(
             height: 48,
-            child: FilledButton(
+            child: AppFilledButton(
               onPressed: !_canSave
                   ? null
                   : () => Navigator.pop(
@@ -1335,7 +1337,7 @@ class _JobPickerSheetState extends State<_JobPickerSheet> {
                           raw: _needsCustom ? _raw.text.trim() : null,
                         ),
                       ),
-              style: FilledButton.styleFrom(
+              style: AppFilledButton.styleFrom(
                 backgroundColor: _EditProfilePageState._blue,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -1437,7 +1439,7 @@ class _DailyPickerSheetState extends State<_DailyPickerSheet> {
             children: widget.options.map((m) {
               final selected = m == _minutes;
               return GestureDetector(
-                onTap: () => _pick(m),
+                onTap: withHaptic(() => _pick(m), select: true),
                 child: Container(
                   width: 96,
                   padding: const EdgeInsets.symmetric(vertical: 14),
@@ -1470,14 +1472,14 @@ class _DailyPickerSheetState extends State<_DailyPickerSheet> {
           const SizedBox(height: 16),
           SizedBox(
             height: 48,
-            child: FilledButton(
+            child: AppFilledButton(
               onPressed: _estimating
                   ? null
                   : () => Navigator.pop(
                         context,
                         _DailyPick(minutes: _minutes, days: _days),
                       ),
-              style: FilledButton.styleFrom(
+              style: AppFilledButton.styleFrom(
                 backgroundColor: _EditProfilePageState._blue,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -1544,7 +1546,7 @@ class _BankPickerSheet extends StatelessWidget {
                       : _EditProfilePageState._bg,
                   borderRadius: BorderRadius.circular(12),
                   child: InkWell(
-                    onTap: () => Navigator.pop(context, bank),
+                    onTap: withHaptic(() => Navigator.pop(context, bank), select: true),
                     borderRadius: BorderRadius.circular(12),
                     child: Container(
                       padding: const EdgeInsets.all(14),

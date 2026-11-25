@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:app_starter/features/lesson/lesson_article_page.dart';
 import 'package:app_starter/features/onboarding/plan_models.dart';
+import 'package:app_starter/core/ui/app_buttons.dart';
 
 /// ⑨ 计划落定：对齐 Figma Phone/进入。
 class PlanReadyPage extends StatelessWidget {
@@ -174,9 +175,9 @@ class PlanReadyPage extends StatelessWidget {
               const Spacer(),
               SizedBox(
                 height: 51,
-                child: FilledButton(
+                child: AppFilledButton(
                   onPressed: () => _enter(context),
-                  style: FilledButton.styleFrom(
+                  style: AppFilledButton.styleFrom(
                     backgroundColor: _blue,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),

@@ -5,6 +5,7 @@ import 'package:app_starter/features/lesson/lesson_tts.dart';
 import 'package:app_starter/features/lesson/lexicon_service.dart';
 import 'package:app_starter/features/lesson/word_repository.dart';
 import 'package:app_starter/features/lesson/widgets/lexicon_extras.dart';
+import 'package:app_starter/core/ui/app_buttons.dart';
 
 /// 点词半屏：有完整释义才展示；否则整块 loading。
 Future<void> showWordSheet({
@@ -380,7 +381,7 @@ class _WordSheetBodyState extends State<_WordSheetBody> {
               Expanded(
                 child: SizedBox(
                   height: 48,
-                  child: FilledButton(
+                  child: AppFilledButton(
                     onPressed: _loading
                         ? null
                         : () {
@@ -397,7 +398,7 @@ class _WordSheetBodyState extends State<_WordSheetBody> {
                               widget.onUnknown(gloss);
                             }
                           },
-                    style: FilledButton.styleFrom(
+                    style: AppFilledButton.styleFrom(
                       backgroundColor: _blue,
                       disabledBackgroundColor: const Color(0xFFD9F99D),
                       shape: RoundedRectangleBorder(
@@ -418,9 +419,9 @@ class _WordSheetBodyState extends State<_WordSheetBody> {
               Expanded(
                 child: SizedBox(
                   height: 48,
-                  child: OutlinedButton(
+                  child: AppOutlinedButton(
                     onPressed: widget.ttsSpeak,
-                    style: OutlinedButton.styleFrom(
+                    style: AppOutlinedButton.styleFrom(
                       foregroundColor: _text,
                       side: const BorderSide(color: _border),
                       shape: RoundedRectangleBorder(

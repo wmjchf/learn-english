@@ -4,6 +4,7 @@ import 'package:app_starter/features/onboarding/cefr_levels.dart';
 import 'package:app_starter/features/onboarding/job_page.dart';
 import 'package:app_starter/features/onboarding/onboarding_nav.dart';
 import 'package:app_starter/features/onboarding/widgets/onboarding_scaffold.dart';
+import 'package:app_starter/core/ui/app_haptics.dart';
 
 /// ⑥ 自评开场：中文六档；只引导起始难度，不写 ability_level。
 class SelfAssessPage extends StatefulWidget {
@@ -81,7 +82,7 @@ class _TierTile extends StatelessWidget {
       color: selected ? _blueSoft : Colors.white,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
-        onTap: onTap,
+        onTap: withHaptic(onTap),
         borderRadius: BorderRadius.circular(14),
         child: Container(
           width: double.infinity,

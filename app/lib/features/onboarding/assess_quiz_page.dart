@@ -6,6 +6,7 @@ import 'package:app_starter/features/onboarding/assess_repository.dart';
 import 'package:app_starter/features/onboarding/assess_result_page.dart';
 import 'package:app_starter/features/onboarding/onboarding_nav.dart';
 import 'package:app_starter/features/onboarding/self_assess_page.dart';
+import 'package:app_starter/core/ui/app_buttons.dart';
 
 /// AI 测评答题：对齐 Figma Phone/测评（抬头 + 进度条 + 题目卡 + 全宽选项）。
 class AssessQuizPage extends StatefulWidget {
@@ -160,7 +161,7 @@ class _AssessQuizPageState extends State<AssessQuizPage> {
         backgroundColor: _bg,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
-        leading: IconButton(
+        leading: AppIconButton(
           icon: const Icon(Icons.chevron_left, color: _blue, size: 32),
           onPressed: _answering ? null : _onBack,
         ),
@@ -185,7 +186,7 @@ class _AssessQuizPageState extends State<AssessQuizPage> {
         children: [
           Text(_error!, style: const TextStyle(color: _muted)),
           const SizedBox(height: 12),
-          TextButton(onPressed: _start, child: const Text('重试')),
+          AppTextButton(onPressed: _start, child: const Text('重试')),
         ],
       );
     }

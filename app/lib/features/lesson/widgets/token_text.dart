@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:app_starter/core/ui/app_haptics.dart';
 import 'package:app_starter/features/lesson/lesson_models.dart';
 
 typedef TokenTap = void Function(LessonToken token);
@@ -98,7 +99,7 @@ class TokenText extends StatelessWidget {
           }
 
           Widget tap = GestureDetector(
-            onTap: () => onTap(t),
+            onTap: withHaptic(() => onTap(t)),
             behavior: HitTestBehavior.opaque,
             child: painted,
           );

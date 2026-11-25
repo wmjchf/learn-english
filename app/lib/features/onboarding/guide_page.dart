@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:app_starter/core/config/app_brand.dart';
 import 'package:app_starter/features/auth/login_page.dart';
+import 'package:app_starter/core/ui/app_buttons.dart';
 
 /// ① 引导页：可不登录浏览；点「开始」→ 登录。
 class GuidePage extends StatelessWidget {
@@ -75,7 +76,7 @@ class GuidePage extends StatelessWidget {
               SizedBox(
                 width: double.infinity,
                 height: 52,
-                child: FilledButton(
+                child: AppFilledButton(
                   onPressed: () {
                     Navigator.of(context).push(
                       MaterialPageRoute<void>(
@@ -83,7 +84,7 @@ class GuidePage extends StatelessWidget {
                       ),
                     );
                   },
-                  style: FilledButton.styleFrom(
+                  style: AppFilledButton.styleFrom(
                     backgroundColor: _blue,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),

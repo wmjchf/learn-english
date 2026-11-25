@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:app_starter/core/ui/app_haptics.dart';
 import 'package:app_starter/features/onboarding/catalog_models.dart';
 
 /// 双列半宽可选块；奇数最后一项仍半宽留白。
@@ -83,7 +84,7 @@ class _Tile extends StatelessWidget {
       color: selected ? OptionTileGrid._blueSoft : Colors.white,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
-        onTap: onTap,
+        onTap: withHaptic(onTap, select: true),
         borderRadius: BorderRadius.circular(14),
         child: Container(
           width: double.infinity,

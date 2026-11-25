@@ -4,6 +4,7 @@ import 'package:app_starter/core/ui/app_toast.dart';
 import 'package:app_starter/features/onboarding/bank_models.dart';
 import 'package:app_starter/features/onboarding/bank_repository.dart';
 import 'package:app_starter/features/onboarding/plan_setup_page.dart';
+import 'package:app_starter/core/ui/app_buttons.dart';
 
 /// ⑦ 选词库：扁平列表，与职业无关。
 class BankSelectPage extends StatefulWidget {
@@ -99,7 +100,7 @@ class _BankSelectPageState extends State<BankSelectPage> {
         backgroundColor: _bg,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
-        leading: IconButton(
+        leading: AppIconButton(
           icon: const Icon(Icons.chevron_left, color: _blue, size: 32),
           onPressed: _submitting
               ? null
@@ -152,7 +153,7 @@ class _BankSelectPageState extends State<BankSelectPage> {
       return Column(
         children: [
           Text(_error!, style: const TextStyle(color: _muted)),
-          TextButton(onPressed: _load, child: const Text('重试')),
+          AppTextButton(onPressed: _load, child: const Text('重试')),
         ],
       );
     }

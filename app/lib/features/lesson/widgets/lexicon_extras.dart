@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:app_starter/core/ui/app_haptics.dart';
 import 'package:app_starter/features/lesson/lexicon_service.dart';
 
 const _text = Color(0xFF0F172A);
@@ -67,7 +68,7 @@ class LexiconExtras extends StatelessWidget {
               ),
               if (showRootBtn)
                 GestureDetector(
-                  onTap: () => showLexiconRootSheet(context, e!),
+                  onTap: withHaptic(() => showLexiconRootSheet(context, e!)),
                   behavior: HitTestBehavior.opaque,
                   child: const Padding(
                     padding: EdgeInsets.only(left: 8, top: 14),
@@ -87,7 +88,7 @@ class LexiconExtras extends StatelessWidget {
         if (showRelation) ...[
           const SizedBox(height: 12),
           GestureDetector(
-            onTap: () => showLexiconRelationSheet(context, e!),
+            onTap: withHaptic(() => showLexiconRelationSheet(context, e!)),
             behavior: HitTestBehavior.opaque,
             child: Container(
               width: double.infinity,
@@ -418,7 +419,7 @@ class _SheetScaffold extends StatelessWidget {
                 ),
               ),
               GestureDetector(
-                onTap: () => Navigator.of(context).pop(),
+                onTap: withHaptic(() => Navigator.of(context).pop()),
                 child: const Text(
                   '关闭',
                   style: TextStyle(

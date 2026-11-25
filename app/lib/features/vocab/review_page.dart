@@ -4,6 +4,7 @@ import 'package:app_starter/core/ui/app_toast.dart';
 import 'package:app_starter/features/lesson/lesson_tts.dart';
 import 'package:app_starter/features/vocab/vocab_models.dart';
 import 'package:app_starter/features/vocab/vocab_repository.dart';
+import 'package:app_starter/core/ui/app_buttons.dart';
 
 /// 闪卡复习：从今日 / 生词本进入（到期词）。
 class ReviewPage extends StatefulWidget {
@@ -213,7 +214,7 @@ class _TopBar extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(4, 4, 16, 0),
           child: Row(
             children: [
-              IconButton(
+              AppIconButton(
                 icon: const Icon(Icons.chevron_left, color: _blue, size: 32),
                 onPressed: onBack,
               ),
@@ -305,7 +306,7 @@ class _CardSession extends StatelessWidget {
                   children: [
                     Align(
                       alignment: Alignment.topRight,
-                      child: IconButton(
+                      child: AppIconButton(
                         onPressed: busy ? null : onSpeak,
                         icon: const Icon(Icons.volume_up_rounded),
                         color: _blue,
@@ -339,9 +340,9 @@ class _CardSession extends StatelessWidget {
             child: Row(
               children: [
                 Expanded(
-                  child: OutlinedButton(
+                  child: AppOutlinedButton(
                     onPressed: canAnswer ? onForgot : null,
-                    style: OutlinedButton.styleFrom(
+                    style: AppOutlinedButton.styleFrom(
                       foregroundColor: _red,
                       disabledForegroundColor: _red.withValues(alpha: 0.5),
                       side: BorderSide(
@@ -363,9 +364,9 @@ class _CardSession extends StatelessWidget {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: FilledButton(
+                  child: AppFilledButton(
                     onPressed: canAnswer ? onKnow : null,
-                    style: FilledButton.styleFrom(
+                    style: AppFilledButton.styleFrom(
                       backgroundColor: _blue,
                       disabledBackgroundColor: _blue.withValues(alpha: 0.35),
                       foregroundColor: Colors.white,
@@ -577,9 +578,9 @@ class _EmptyDeck extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            FilledButton(
+            AppFilledButton(
               onPressed: onClose,
-              style: FilledButton.styleFrom(
+              style: AppFilledButton.styleFrom(
                 backgroundColor: const Color(0xFF7AC70C),
               ),
               child: const Text('返回'),
@@ -607,9 +608,9 @@ class _ErrorView extends StatelessWidget {
           children: [
             Text(message, textAlign: TextAlign.center),
             const SizedBox(height: 12),
-            FilledButton(
+            AppFilledButton(
               onPressed: onRetry,
-              style: FilledButton.styleFrom(
+              style: AppFilledButton.styleFrom(
                 backgroundColor: const Color(0xFF7AC70C),
               ),
               child: const Text('重试'),
@@ -685,9 +686,9 @@ class _DoneView extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             height: 52,
-            child: FilledButton(
+            child: AppFilledButton(
               onPressed: onClose,
-              style: FilledButton.styleFrom(
+              style: AppFilledButton.styleFrom(
                 backgroundColor: _blue,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),

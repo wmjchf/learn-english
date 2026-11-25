@@ -13,6 +13,8 @@ import 'package:app_starter/features/lesson/widgets/word_sheet.dart';
 import 'package:app_starter/features/lesson/widgets/word_walkthrough_sheet.dart';
 import 'package:app_starter/features/lesson/widgets/zh_marked_text.dart';
 import 'package:app_starter/features/shell/main_shell.dart';
+import 'package:app_starter/core/ui/app_buttons.dart';
+import 'package:app_starter/core/ui/app_haptics.dart';
 
 /// 日课短文：对齐 Figma Phone/日课短文。
 class LessonArticlePage extends StatefulWidget {
@@ -562,8 +564,10 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
                                   ),
                                 ),
                                 GestureDetector(
-                                  onTap: () => setState(
-                                    () => _zhExpanded = !_zhExpanded,
+                                  onTap: withHaptic(
+                                    () => setState(
+                                      () => _zhExpanded = !_zhExpanded,
+                                    ),
                                   ),
                                   child: Text(
                                     _zhExpanded ? '收起' : '展开',
@@ -614,9 +618,9 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
           child: SizedBox(
             height: 48,
             width: double.infinity,
-            child: FilledButton(
+            child: AppFilledButton(
               onPressed: _goWordWalkthrough,
-              style: FilledButton.styleFrom(
+              style: AppFilledButton.styleFrom(
                 backgroundColor: _blue,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
@@ -651,7 +655,7 @@ class _Header extends StatelessWidget {
       child: Row(
         children: [
           GestureDetector(
-            onTap: onBack,
+            onTap: withHaptic(onBack),
             behavior: HitTestBehavior.opaque,
             child: const Row(
               children: [
@@ -709,7 +713,7 @@ class _ErrorBody extends StatelessWidget {
           children: [
             Text(message, textAlign: TextAlign.center),
             const SizedBox(height: 16),
-            FilledButton(onPressed: onRetry, child: const Text('重试')),
+            AppFilledButton(onPressed: onRetry, child: const Text('重试')),
           ],
         ),
       ),

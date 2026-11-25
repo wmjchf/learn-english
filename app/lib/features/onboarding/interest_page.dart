@@ -8,6 +8,7 @@ import 'package:app_starter/features/onboarding/scene_page.dart';
 import 'package:app_starter/features/onboarding/widgets/onboarding_scaffold.dart';
 import 'package:app_starter/features/onboarding/widgets/option_tile_grid.dart';
 import 'package:app_starter/features/profile/profile_repository.dart';
+import 'package:app_starter/core/ui/app_buttons.dart';
 
 class InterestPage extends StatefulWidget {
   const InterestPage({super.key});
@@ -113,7 +114,7 @@ class _InterestPageState extends State<InterestPage> {
         children: [
           Text(_error!, style: const TextStyle(color: Color(0xFF64748B))),
           const SizedBox(height: 12),
-          TextButton(onPressed: _load, child: const Text('重试')),
+          AppTextButton(onPressed: _load, child: const Text('重试')),
         ],
       );
     } else {

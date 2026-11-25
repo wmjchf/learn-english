@@ -7,6 +7,8 @@ import 'package:app_starter/features/library/library_repository.dart';
 import 'package:app_starter/features/lesson/lesson_article_page.dart';
 import 'package:app_starter/features/lesson/lesson_repository.dart';
 import 'package:app_starter/features/shell/app_navigator.dart';
+import 'package:app_starter/core/ui/app_buttons.dart';
+import 'package:app_starter/core/ui/app_haptics.dart';
 
 /// 文章库 Tab：对齐 Figma Phone/文章库。
 class LibraryPage extends StatefulWidget {
@@ -149,7 +151,7 @@ class _LibraryPageState extends State<LibraryPage> {
                         children: [
                           Text(_error!, textAlign: TextAlign.center),
                           const SizedBox(height: 12),
-                          FilledButton(
+                          AppFilledButton(
                             onPressed: _load,
                             child: const Text('重试'),
                           ),
@@ -313,9 +315,9 @@ class _GenerateHero extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             height: 48,
-            child: FilledButton(
+            child: AppFilledButton(
               onPressed: enabled ? onGenerate : null,
-              style: FilledButton.styleFrom(
+              style: AppFilledButton.styleFrom(
                 backgroundColor: Colors.white,
                 disabledBackgroundColor: Colors.white.withValues(alpha: 0.55),
                 foregroundColor: AppColors.accent,
@@ -354,7 +356,7 @@ class _FilterChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: withHaptic(onTap),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
@@ -394,7 +396,7 @@ class _LessonRow extends StatelessWidget {
       color: Colors.white,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
-        onTap: onTap,
+        onTap: withHaptic(onTap),
         borderRadius: BorderRadius.circular(16),
         child: Container(
           height: 100,

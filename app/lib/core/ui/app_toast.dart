@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:app_starter/core/ui/app_haptics.dart';
 
 /// 全 App 统一底部悬浮 Toast（对齐 Figma 公共 Toast）
 class AppToast {
@@ -182,7 +183,7 @@ class _ToastPill extends StatelessWidget {
             if (actionLabel != null && onAction != null) ...[
               const SizedBox(width: 12),
               GestureDetector(
-                onTap: onAction,
+                onTap: withHaptic(onAction),
                 child: Text(
                   actionLabel!,
                   style: const TextStyle(

@@ -8,6 +8,8 @@ import 'package:app_starter/features/onboarding/bank_select_page.dart';
 import 'package:app_starter/features/onboarding/plan_models.dart';
 import 'package:app_starter/features/onboarding/plan_ready_page.dart';
 import 'package:app_starter/features/onboarding/plan_repository.dart';
+import 'package:app_starter/core/ui/app_buttons.dart';
+import 'package:app_starter/core/ui/app_haptics.dart';
 
 /// ⑧ 每天时间与计划天数：chips + 天数双向联动。
 class PlanSetupPage extends StatefulWidget {
@@ -201,7 +203,7 @@ class _PlanSetupPageState extends State<PlanSetupPage> {
         backgroundColor: _bg,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
-        leading: IconButton(
+        leading: AppIconButton(
           icon: const Icon(Icons.chevron_left, color: _blue, size: 32),
           onPressed: _submitting
               ? null
@@ -225,7 +227,7 @@ class _PlanSetupPageState extends State<PlanSetupPage> {
                     child: Column(
                       children: [
                         Text(_error!, style: const TextStyle(color: _muted)),
-                        TextButton(onPressed: _load, child: const Text('重试')),
+                        AppTextButton(onPressed: _load, child: const Text('重试')),
                       ],
                     ),
                   )
@@ -305,9 +307,9 @@ class _PlanSetupPageState extends State<PlanSetupPage> {
           const SizedBox(height: 12),
           SizedBox(
             height: 48,
-            child: FilledButton(
+            child: AppFilledButton(
               onPressed: _submitting ? null : _submit,
-              style: FilledButton.styleFrom(
+              style: AppFilledButton.styleFrom(
                 backgroundColor: _blue,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -396,7 +398,7 @@ class _Chip extends StatelessWidget {
       color: active ? _MinuteChips._blueSoft : Colors.white,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
-        onTap: onTap,
+        onTap: withHaptic(onTap),
         borderRadius: BorderRadius.circular(12),
         child: Container(
           height: 38,
@@ -523,7 +525,7 @@ class _DaysCard extends StatelessWidget {
             )
           else
             GestureDetector(
-              onTap: onEdit,
+              onTap: withHaptic(onEdit),
               child: Text(
                 '${controller.text} 天',
                 style: const TextStyle(
