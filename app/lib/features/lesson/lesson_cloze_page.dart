@@ -7,7 +7,8 @@ import 'package:app_starter/features/lesson/sentence_cloze.dart';
 import 'package:app_starter/features/lesson/word_repository.dart';
 import 'package:app_starter/features/shell/main_shell.dart';
 
-/// 例句闭眼回填：一页一句；同句多词合填；输完继续；全对打卡。
+/// 例句闭眼回填：一页一句；同句多词合填。
+/// 填错先展示正确答案再进下一题；本轮走完后只刷错题，直到全对再打卡。
 class LessonClozePage extends StatefulWidget {
   const LessonClozePage({super.key, required this.lesson});
 
@@ -22,13 +23,19 @@ class _LessonClozePageState extends State<LessonClozePage> {
   final _words = WordRepository();
   final _tts = LessonTts();
 
-  late final List<SentenceClozePageData> _pages;
-  late final List<bool?> _results;
+  late final List<SentenceClozePageData> _bank;
+  late List<SentenceClozePageData> _queue;
+  final List<SentenceClozePageData> _missedThisRound = [];
+
   late List<TextEditingController> _controllers;
   late List<FocusNode> _foci;
+  final _scroll = ScrollController();
+  final _questionKey = GlobalKey();
 
   int _index = 0;
+  int _round = 1;
   bool _judged = false;
+  bool? _pageOk;
   int _wrongTotal = 0;
   bool _submitting = false;
   bool _advancing = false;
@@ -45,18 +52,22 @@ class _LessonClozePageState extends State<LessonClozePage> {
   static const _warnSoft = Color(0xFFFEF3C7);
   static const _warnText = Color(0xFFB45309);
 
-  SentenceClozePageData get _current => _pages[_index];
+  SentenceClozePageData get _current => _queue[_index];
+
+  bool get _isRetryRound => _round > 1;
 
   @override
   void initState() {
     super.initState();
-    _pages = buildSentenceClozePages(widget.lesson.content);
-    _results = List<bool?>.filled(_pages.length, null);
+    _bank = buildSentenceClozePages(widget.lesson.content);
+    _queue = List<SentenceClozePageData>.from(_bank);
     _controllers = [];
     _foci = [];
-    _setupFieldsForPage(0);
+    _setupFieldsForPage();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _foci.isNotEmpty) _foci.first.requestFocus();
+      if (!mounted || _foci.isEmpty) return;
+      _foci.first.requestFocus();
+      _ensureQuestionVisible();
     });
   }
 
@@ -71,17 +82,40 @@ class _LessonClozePageState extends State<LessonClozePage> {
     _foci = [];
   }
 
-  void _setupFieldsForPage(int pageIndex) {
+  void _setupFieldsForPage() {
     _disposeFields();
-    if (_pages.isEmpty || pageIndex < 0 || pageIndex >= _pages.length) return;
-    final n = _pages[pageIndex].blanks.length;
+    if (_queue.isEmpty || _index < 0 || _index >= _queue.length) return;
+    final n = _queue[_index].blanks.length;
     _controllers = List.generate(n, (_) => TextEditingController());
-    _foci = List.generate(n, (_) => FocusNode());
+    _foci = List.generate(n, (_) {
+      final node = FocusNode();
+      node.addListener(() {
+        if (node.hasFocus) _ensureQuestionVisible();
+      });
+      return node;
+    });
+  }
+
+  /// 键盘弹出后把例句滚到可视区顶部，避免挡住题目。
+  void _ensureQuestionVisible() {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      if (!mounted) return;
+      final ctx = _questionKey.currentContext;
+      if (ctx == null) return;
+      await Scrollable.ensureVisible(
+        ctx,
+        alignment: 0.02,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOut,
+      );
+    });
   }
 
   @override
   void dispose() {
     _disposeFields();
+    _scroll.dispose();
     _tts.dispose();
     super.dispose();
   }
@@ -100,6 +134,36 @@ class _LessonClozePageState extends State<LessonClozePage> {
     for (var i = 0; i < _current.blanks.length; i++) {
       if (!_blankMatches(i)) return false;
     }
+    return true;
+  }
+
+  bool _allFilled() {
+    for (final c in _controllers) {
+      if (_norm(c.text).isEmpty) return false;
+    }
+    return true;
+  }
+
+  /// 多空未填完时：跳到下一空 / 第一个空缺，不校验。
+  bool _focusNextBlankIfNeeded() {
+    if (_current.blanks.length <= 1 || _allFilled()) return false;
+    final focused = _foci.indexWhere((f) => f.hasFocus);
+    var target = -1;
+    if (focused >= 0 && focused < _foci.length - 1) {
+      target = focused + 1;
+    }
+    if (target < 0 || _norm(_controllers[target].text).isNotEmpty) {
+      target = -1;
+      for (var i = 0; i < _controllers.length; i++) {
+        if (_norm(_controllers[i].text).isEmpty) {
+          target = i;
+          break;
+        }
+      }
+    }
+    if (target < 0 || target >= _foci.length) return false;
+    _foci[target].requestFocus();
+    _ensureQuestionVisible();
     return true;
   }
 
@@ -142,12 +206,39 @@ class _LessonClozePageState extends State<LessonClozePage> {
       Future<void>.delayed(const Duration(milliseconds: 80), () {
         if (!mounted || _foci.isEmpty) return;
         if (!_foci.first.hasFocus) _foci.first.requestFocus();
+        _ensureQuestionVisible();
       });
     });
   }
 
+  void _startRetryRound() {
+    final next = List<SentenceClozePageData>.from(_missedThisRound);
+    _missedThisRound.clear();
+    for (final f in _foci) {
+      f.unfocus();
+    }
+    setState(() {
+      _queue = next;
+      _index = 0;
+      _round += 1;
+      _judged = false;
+      _pageOk = null;
+      _advancing = false;
+      _setupFieldsForPage();
+    });
+    _refocusFirst();
+    if (mounted) {
+      AppToast.show(context, '本轮错 ${_queue.length} 句，开始巩固');
+    }
+  }
+
   void _goNext() {
-    if (_index >= _pages.length - 1) {
+    final last = _index >= _queue.length - 1;
+    if (last) {
+      if (_missedThisRound.isNotEmpty) {
+        _startRetryRound();
+        return;
+      }
       _completeLesson();
       return;
     }
@@ -157,29 +248,24 @@ class _LessonClozePageState extends State<LessonClozePage> {
     setState(() {
       _index += 1;
       _judged = false;
+      _pageOk = null;
       _advancing = false;
-      _setupFieldsForPage(_index);
+      _setupFieldsForPage();
     });
     _refocusFirst();
   }
 
   Future<void> _onCta() async {
-    if (_submitting || _advancing || _pages.isEmpty) return;
+    if (_submitting || _advancing || _queue.isEmpty) return;
 
-    if (_judged && _results[_index] == true) {
+    // 已判定：对 / 错都直接进下一题（错题不要求当场改对）
+    if (_judged) {
       _goNext();
       return;
     }
 
-    if (_judged && _results[_index] == false) {
-      if (!_allMatch()) {
-        AppToast.show(context, '请先全部改对再继续');
-        return;
-      }
-      setState(() => _results[_index] = true);
-      _goNext();
-      return;
-    }
+    // 同句多空：填完当前词先跳下一空，全部填完再校验
+    if (_focusNextBlankIfNeeded()) return;
 
     final ok = _allMatch();
     if (ok) {
@@ -189,7 +275,7 @@ class _LessonClozePageState extends State<LessonClozePage> {
       }
       setState(() {
         _judged = true;
-        _results[_index] = true;
+        _pageOk = true;
       });
       await Future<void>.delayed(const Duration(milliseconds: 350));
       if (!mounted) return;
@@ -197,9 +283,13 @@ class _LessonClozePageState extends State<LessonClozePage> {
       return;
     }
 
+    // 错：展示答案，记入本轮错题，点继续再往后
+    if (!_missedThisRound.contains(_current)) {
+      _missedThisRound.add(_current);
+    }
     setState(() {
       _judged = true;
-      _results[_index] = false;
+      _pageOk = false;
       _wrongTotal += 1;
     });
     for (var i = 0; i < _current.blanks.length; i++) {
@@ -211,14 +301,25 @@ class _LessonClozePageState extends State<LessonClozePage> {
 
   String get _ctaLabel {
     if (_submitting) return '提交中…';
-    final last = _index >= _pages.length - 1;
-    if (!_judged) return last ? '判定并打卡' : '继续';
-    if (_results[_index] == true) return last ? '打卡' : '继续';
-    return last ? '改对后打卡' : '改对后继续';
+    final last = _index >= _queue.length - 1;
+    final hasRetry = _missedThisRound.isNotEmpty;
+    if (!_judged) {
+      if (last && !hasRetry) return '判定并打卡';
+      if (last && hasRetry) return '判定后刷错题';
+      return '继续';
+    }
+    if (_pageOk == true) {
+      if (last && !hasRetry) return '打卡';
+      if (last && hasRetry) return '去刷错题';
+      return '继续';
+    }
+    // 错了已展示答案
+    if (last && hasRetry) return '去刷错题';
+    if (last && !hasRetry) return '打卡';
+    return '继续';
   }
 
   String _sentenceWithHints(SentenceClozePageData page) {
-    // 先换成唯一占位，避免「________（提示）」里的 ________ 被下一次 replaceFirst 再次命中
     var s = page.sentenceBlanked;
     for (var i = 0; i < page.blanks.length; i++) {
       s = s.replaceFirst('________', '⟦B$i⟧');
@@ -233,7 +334,7 @@ class _LessonClozePageState extends State<LessonClozePage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_pages.isEmpty) {
+    if (_bank.isEmpty) {
       return Scaffold(
         backgroundColor: _bg,
         body: SafeArea(
@@ -248,18 +349,27 @@ class _LessonClozePageState extends State<LessonClozePage> {
     }
 
     final page = _current;
-    final result = _results[_index];
+    final result = _pageOk;
     final showAnswer = _judged && result == false;
-    final total = _pages.length;
+    final total = _queue.length;
     final multi = page.blanks.length > 1;
+    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
+    final progressLine = _isRetryRound
+        ? (multi
+            ? '巩固 ${_index + 1} / $total · 本句 ${page.blanks.length} 个空'
+            : '巩固 ${_index + 1} / $total · 根据例句再拼一遍')
+        : (multi
+            ? '第 ${_index + 1} / $total 句 · 本句有 ${page.blanks.length} 个目标词，一起填'
+            : '第 ${_index + 1} / $total 句 · 根据例句拼出目标词');
 
     return Scaffold(
       backgroundColor: _bg,
+      resizeToAvoidBottomInset: true,
       body: SafeArea(
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
+              padding: EdgeInsets.fromLTRB(14, keyboardOpen ? 4 : 10, 14, 8),
               child: Row(
                 children: [
                   GestureDetector(
@@ -290,7 +400,9 @@ class _LessonClozePageState extends State<LessonClozePage> {
                   ),
                   const Spacer(),
                   Text(
-                    'Day ${widget.lesson.dayIndex}',
+                    keyboardOpen
+                        ? '${_isRetryRound ? '巩固' : '回填'} ${_index + 1}/$total'
+                        : 'Day ${widget.lesson.dayIndex}',
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
@@ -300,33 +412,33 @@ class _LessonClozePageState extends State<LessonClozePage> {
                 ],
               ),
             ),
-            const Padding(
-              padding: EdgeInsets.fromLTRB(24, 8, 24, 4),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  '例句回填',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                    color: _text,
+            if (!keyboardOpen) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 4),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    _isRetryRound ? '错题巩固' : '例句回填',
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      color: _text,
+                    ),
                   ),
                 ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  multi
-                      ? '第 ${_index + 1} / $total 句 · 本句有 ${page.blanks.length} 个目标词，一起填'
-                      : '第 ${_index + 1} / $total 句 · 根据例句拼出目标词',
-                  style: const TextStyle(fontSize: 13, color: _muted),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    progressLine,
+                    style: const TextStyle(fontSize: 13, color: _muted),
+                  ),
                 ),
               ),
-            ),
-            if (_wrongTotal > 0)
+            ],
+            if (!keyboardOpen && (_wrongTotal > 0 || showAnswer))
               Padding(
                 padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
                 child: Container(
@@ -341,8 +453,10 @@ class _LessonClozePageState extends State<LessonClozePage> {
                   ),
                   child: Text(
                     showAnswer
-                        ? '这句不对，正确答案已标出 · 已进待巩固\n改对后再继续'
-                        : '已累计 $_wrongTotal 句错过 · 错词已进待巩固',
+                        ? '这句不对，正确答案已标出 · 点继续；本轮结束后再刷错题'
+                        : (_isRetryRound
+                            ? '错题巩固中 · 累计错过 $_wrongTotal 句'
+                            : '已累计 $_wrongTotal 句错过 · 本轮结束后再刷错题'),
                     style: const TextStyle(
                       fontSize: 13,
                       color: _warnText,
@@ -354,7 +468,10 @@ class _LessonClozePageState extends State<LessonClozePage> {
               ),
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+                controller: _scroll,
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 24),
                 children: [
                   Container(
                     padding: const EdgeInsets.all(14),
@@ -375,7 +492,11 @@ class _LessonClozePageState extends State<LessonClozePage> {
                           children: [
                             Expanded(
                               child: Text(
-                                multi ? '同句合填' : '第 ${_index + 1} 句',
+                                multi
+                                    ? '同句合填'
+                                    : (_isRetryRound
+                                        ? '巩固 ${_index + 1}'
+                                        : '第 ${_index + 1} 句'),
                                 style: const TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
@@ -404,13 +525,16 @@ class _LessonClozePageState extends State<LessonClozePage> {
                           ],
                         ),
                         const SizedBox(height: 10),
-                        Text(
-                          _sentenceWithHints(page),
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: _text,
-                            height: 1.5,
+                        KeyedSubtree(
+                          key: _questionKey,
+                          child: Text(
+                            _sentenceWithHints(page),
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: _text,
+                              height: 1.5,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 14),
@@ -429,25 +553,31 @@ class _LessonClozePageState extends State<LessonClozePage> {
                               ),
                             ),
                           TextField(
-                            key: ValueKey('cloze-$_index-$i'),
+                            key: ValueKey('cloze-$_round-$_index-$i'),
                             controller: _controllers[i],
                             focusNode: _foci[i],
                             autocorrect: false,
                             enableSuggestions: false,
                             enableIMEPersonalizedLearning: false,
-                            readOnly:
-                                _submitting || _advancing || result == true,
+                            readOnly: _submitting || _advancing || _judged,
                             keyboardType: TextInputType.visiblePassword,
                             textCapitalization: TextCapitalization.none,
                             textInputAction: i < page.blanks.length - 1
                                 ? TextInputAction.next
                                 : TextInputAction.done,
+                            onTap: _ensureQuestionVisible,
                             onSubmitted: (_) {
+                              if (_judged) {
+                                _onCta();
+                                return;
+                              }
+                              // 多空：键盘继续 / next → 下一空；最后一空才校验
                               if (i < page.blanks.length - 1) {
                                 _foci[i + 1].requestFocus();
-                              } else {
-                                _onCta();
+                                _ensureQuestionVisible();
+                                return;
                               }
+                              _onCta();
                             },
                             decoration: InputDecoration(
                               hintText: multi ? '拼写第 ${i + 1} 个词' : '拼写英文',
@@ -536,25 +666,6 @@ class _LessonClozePageState extends State<LessonClozePage> {
                                           size: 22,
                                         ),
                                       ),
-                                      TextButton(
-                                        onPressed: () {
-                                          _controllers[i].text =
-                                              page.blanks[i].surface;
-                                          _controllers[i].selection =
-                                              TextSelection.collapsed(
-                                            offset:
-                                                page.blanks[i].surface.length,
-                                          );
-                                          _foci[i].requestFocus();
-                                        },
-                                        child: const Text(
-                                          '填入',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w700,
-                                            color: _bad,
-                                          ),
-                                        ),
-                                      ),
                                     ],
                                   ),
                               ],
@@ -564,6 +675,8 @@ class _LessonClozePageState extends State<LessonClozePage> {
                       ],
                     ),
                   ),
+                  // 留白：键盘升起后仍能把例句滚到输入框上方
+                  SizedBox(height: keyboardOpen ? 160 : 12),
                 ],
               ),
             ),

@@ -531,16 +531,7 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
                         height: 20 / 15,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    TokenText(
-                      tokens: article.enTokens,
-                      onTap: _onToken,
-                      knownLemmas: _known,
-                      tempHighlightLemmas: _tempHl,
-                      focusLemmas: _focus,
-                      lemmaKeys: _lemmaKeys,
-                      fontSize: 17,
-                    ),
+                    // 顺序：导读（上方场景块）→ 中文翻译 → 英文
                     if (article.zhDisplay.isNotEmpty && !_walkingWords) ...[
                       const SizedBox(height: 10),
                       Container(
@@ -602,6 +593,16 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
                         ),
                       ),
                     ],
+                    const SizedBox(height: 10),
+                    TokenText(
+                      tokens: article.enTokens,
+                      onTap: _onToken,
+                      knownLemmas: _known,
+                      tempHighlightLemmas: _tempHl,
+                      focusLemmas: _focus,
+                      lemmaKeys: _lemmaKeys,
+                      fontSize: 17,
+                    ),
                   ],
                 ),
               ),

@@ -521,8 +521,8 @@ class _WalkthroughSheetState extends State<_WalkthroughSheet> {
                   child: Text(
                     _knownThisCard ? '已取消高亮' : '认识，不再高亮',
                     style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
                       color: _knownThisCard ? _blue : _muted,
                     ),
                   ),
