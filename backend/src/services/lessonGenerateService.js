@@ -13,6 +13,10 @@ const bankWordService = require('./bankWordService');
 const catalogService = require('./catalogService');
 const wordDictService = require('./wordDictService');
 const wordLifecycleService = require('./wordLifecycleService');
+const {
+  DEFAULT_MINUTES,
+  targetCountFromMinutes,
+} = require('./planEstimate');
 
 function asArray(v) {
   return Array.isArray(v) ? v : [];
@@ -72,6 +76,9 @@ function buildPrompt({
       ? `\n禁止复用这些已有主题（事件/情节也要换新）：${avoidThemes.join('、')}`
       : '';
   const targets = (targetLemmas || []).join(', ');
+  const n = (targetLemmas || []).length || 12;
+  const enLo = Math.max(70, n * 7);
+  const enHi = Math.max(enLo + 20, n * 10);
   return `写 Day ${dayIndex} 日课 JSON（紧凑，勿解释）。不要生成对话/dialog/turns。
 
 画像：${level}；${jobLabel}；场景 ${sceneLine}；兴趣 ${interestLine}；${bankTitle}
@@ -91,9 +98,9 @@ function buildPrompt({
 theme(中文标题 4-10 字：必须概括本篇短文的具体事件/话题，且能看出职业或场景；内容不同则 theme 必须不同；禁止「今日职场」「商务英语」「职场沟通」等空泛词),
 title(英文短标题，同样要具体、贴合本篇内容与画像),
 scene:{roleBackground(中文1-2句，点明身份与场景),tasks[3]（与阅读短文/点词/回填相关，勿提对话）},
-article:{title(可贴合短文的英文题),zhTitle(title的中文译名，4-12字，具体),zhLead(中文≤40字，只作导读/摘要，不是全文翻译),enPlain(英文70-100词，自然写入全部目标词；纯文本勿加**),zhPlain(必须是 enPlain 的完整忠实中文翻译，一句不漏；禁止照搬 zhLead；勿做成词表)},
+article:{title(可贴合短文的英文题),zhTitle(title的中文译名，4-12字，具体),zhLead(中文≤40字，只作导读/摘要，不是全文翻译),enPlain(英文${enLo}-${enHi}词，自然写入全部目标词；纯文本勿加**),zhPlain(必须是 enPlain 的完整忠实中文翻译，一句不漏；禁止照搬 zhLead；勿做成词表)},
 targetZh:{<目标lemma>:<该词在本篇中文里的完整对应>} 必须覆盖全部目标词,
-cloze:[{sentence含________,hintZh,answer,before,after}] 尽量8题（可少）；answer必须∈上方目标词且互不重复；宁缺毋滥，勿编造目标词外的 answer
+cloze:[] 固定空数组（回填由 App 按短文本地生成，勿输出题目）
 
 难度贴合 ${level}；职场自然；禁止只列单词；先想清本篇具体故事再写 theme/title；写完英文后务必另写完整中译。`;
 }
@@ -238,6 +245,22 @@ function stripZhMarks(zhPlain) {
   return asString(zhPlain).replace(/【([^】]*)】/g, '$1');
 }
 
+/** 去掉曾为过校验塞进文末的目标词表：（选择、哭泣…） */
+function stripInjectedTargetZhTail(zhPlain) {
+  let text = asString(zhPlain);
+  if (!text) return text;
+  let prev = '';
+  while (text !== prev) {
+    prev = text;
+    text = text
+      .replace(/（[^）]{1,80}）[。！？…]?\s*$/g, '')
+      .replace(/\([^)]{1,80}\)[.!?]?\s*$/g, '')
+      .trim();
+  }
+  if (text && !/[。！？…】]$/.test(text)) text += '。';
+  return text;
+}
+
 function applyTargetZhMarks(zhPlain, targetZh) {
   let text = stripZhMarks(zhPlain);
   if (!text || !targetZh || !Object.keys(targetZh).length) return text;
@@ -256,6 +279,70 @@ function applyTargetZhMarks(zhPlain, targetZh) {
       text.slice(idx + phrase.length);
   }
   return text;
+}
+
+/**
+ * 在中译里找可用高亮短语：精确命中，或用前缀对齐正文实际用词
+ * （如 targetZh=几乎不，正文=几乎没有 → 取几乎没有）。
+ */
+function resolveZhPhraseInText(text, phrase) {
+  const p = asString(phrase).replace(/【|】/g, '');
+  if (!p || !text) return null;
+  if (text.includes(p)) return p;
+
+  for (let len = p.length - 1; len >= 2; len--) {
+    const sub = p.slice(0, len);
+    const at = text.indexOf(sub);
+    if (at < 0) continue;
+    // 最多比原映射长 1 字（几乎不 → 几乎没有），避免吞到「几乎没有时间」
+    let end = at + sub.length;
+    const limit = Math.min(text.length, at + p.length + 1);
+    while (end < limit && /[\u4e00-\u9fff]/.test(text[end])) end++;
+    const extended = text.slice(at, end);
+    if (extended.length >= 2) return extended;
+  }
+  return null;
+}
+
+/**
+ * 对齐 targetZh 与中译：能在正文里对上的就改映射并高亮；
+ * 对不上的保留原映射但不改写译文（禁止文末塞词表）。
+ */
+function reconcileTargetZh(lesson) {
+  const targets = (lesson.targetLemmas || []).map(cleanLemma).filter(Boolean);
+  if (!targets.length || !lesson.article) return;
+
+  const map = { ...(lesson.targetZh || {}) };
+  let body = stripInjectedTargetZhTail(
+    stripZhMarks(lesson.article.zhPlain || ''),
+  );
+  if (!body) return;
+
+  for (const lemma of targets) {
+    let zh = asString(map[lemma]).replace(/【|】/g, '');
+    if (!zh) continue;
+
+    if (zh.length < 2) {
+      const at = body.indexOf(zh);
+      if (at >= 0) {
+        let end = at + 1;
+        const limit = Math.min(body.length, at + 2);
+        while (end < limit && /[\u4e00-\u9fff]/.test(body[end])) end++;
+        if (end > at + 1) zh = body.slice(at, end);
+      }
+    }
+
+    const resolved = resolveZhPhraseInText(body, zh);
+    if (resolved) {
+      map[lemma] = resolved;
+    } else {
+      // 正文没有对应中文：保留释义供点词，但不强行写入译文
+      map[lemma] = zh;
+    }
+  }
+
+  lesson.targetZh = map;
+  lesson.article.zhPlain = applyTargetZhMarks(body, map);
 }
 
 /** 丢掉非目标词答案，再用目标词补齐到 8 题，避免模型写偏整篇重跑 */
@@ -360,6 +447,7 @@ async function ensureFaithfulTranslations(lesson) {
     .filter(Boolean)
     .join('\n\n');
 
+  const n = (lesson.targetLemmas || []).length || 12;
   const result = await chatCompletion({
     messages: [
       {
@@ -369,11 +457,13 @@ async function ensureFaithfulTranslations(lesson) {
       { role: 'user', content: userParts },
     ],
     temperature: 0.2,
-    maxTokens: 900,
+    maxTokens: Math.min(4000, 700 + n * 40),
     jsonMode: true,
   });
 
-  const raw = parseJsonContent(result.content);
+  const raw = parseJsonContent(result.content, {
+    finishReason: result.finishReason,
+  });
   let fixed = false;
   const zh = asString(raw.zhPlain || raw.zh_plain);
   const targetZh = normalizeTargetZh(
@@ -402,8 +492,8 @@ async function ensureFaithfulTranslations(lesson) {
 }
 
 /**
- * 用 targetZh 映射校验：每个目标词都有完整中文对应，且能在译文中找到。
- * 不再用虚词黑名单列举。
+ * targetZh 校验（对齐英文覆盖率）：允许少量对不齐，缺映射/未入文合计超过 30% 才失败。
+ * 成文前会跑 reconcileTargetZh 尽量补齐。
  */
 function validateZhTargetMarks(lesson) {
   const errors = [];
@@ -412,33 +502,33 @@ function validateZhTargetMarks(lesson) {
 
   const map = lesson.targetZh || {};
   const zhBody = stripZhMarks(lesson.article?.zhPlain || '');
-  const missing = [];
-  const notInText = [];
-  const tooShort = [];
+  const bad = [];
 
   for (const lemma of targets) {
-    const zh = asString(map[lemma]);
+    const zh = asString(map[lemma]).replace(/【|】/g, '');
     if (!zh) {
-      missing.push(lemma);
+      bad.push(`${lemma}:缺映射`);
       continue;
     }
     if (zh.length < 2) {
-      tooShort.push(`${lemma}=${zh}`);
+      bad.push(`${lemma}=${zh}:过短`);
       continue;
     }
     if (!zhBody.includes(zh)) {
-      notInText.push(`${lemma}=${zh}`);
+      bad.push(`${lemma}=${zh}:未入文`);
     }
   }
 
-  if (missing.length) {
-    errors.push(`缺 targetZh: ${missing.slice(0, 6).join(', ')}`);
-  }
-  if (tooShort.length) {
-    errors.push(`targetZh 过短: ${tooShort.slice(0, 5).join('、')}`);
-  }
-  if (notInText.length) {
-    errors.push(`targetZh 未出现在中译: ${notInText.slice(0, 5).join('、')}`);
+  const ratio = 1 - bad.length / targets.length;
+  if (ratio < 0.7) {
+    errors.push(
+      `targetZh 可用率 ${(ratio * 100).toFixed(0)}% < 70%（${bad.slice(0, 5).join('、')}）`,
+    );
+  } else if (bad.length) {
+    console.warn(
+      `[lesson] targetZh soft-miss ${bad.length}/${targets.length}:`,
+      bad.slice(0, 6).join('、'),
+    );
   }
   return errors;
 }
@@ -489,6 +579,9 @@ function validateLesson(lesson, { avoidThemes = [] } = {}) {
 
 async function generateOnce(ctx) {
   const prompt = buildPrompt(ctx);
+  const n = (ctx.targetLemmas || []).length || 12;
+  // 目标词增多后中英全文 + targetZh 易超旧 1400 上限，按词数放大
+  const maxTokens = Math.min(8192, 2200 + n * 100);
   const result = await chatCompletion({
     messages: [
       {
@@ -498,11 +591,20 @@ async function generateOnce(ctx) {
       { role: 'user', content: prompt },
     ],
     temperature: 0.35,
-    maxTokens: 1400,
+    maxTokens,
     jsonMode: true,
   });
 
-  const raw = parseJsonContent(result.content);
+  if (result.finishReason === 'length') {
+    const err = new Error('生成内容过长被截断，请重试');
+    err.status = 502;
+    err.code = 'LLM_TRUNCATED';
+    throw err;
+  }
+
+  const raw = parseJsonContent(result.content, {
+    finishReason: result.finishReason,
+  });
   const lesson = normalizeLesson(raw, {
     targetLemmas: ctx.targetLemmas,
     reviewLemmas: ctx.reviewLemmas || [],
@@ -522,6 +624,8 @@ async function generateOnce(ctx) {
   } catch (err) {
     console.warn('[lesson] re-translate failed:', err.message);
   }
+  // 模型常写 targetZh=几乎不、正文却用几乎没有 → 对齐后再校验
+  reconcileTargetZh(lesson);
   const check = validateLesson(lesson, {
     avoidThemes: ctx.avoidThemes || [],
   });
@@ -579,7 +683,7 @@ async function usedTargetLemmas(userId, { exceptLessonId = null } = {}) {
  */
 async function generateLessonForUser(
   userId,
-  { dayIndex = 1, lemmaOffset = 0, targetCount = 12, exceptLessonId = null } = {},
+  { dayIndex = 1, lemmaOffset = 0, targetCount = null, exceptLessonId = null } = {},
 ) {
   if (!config.llm.apiKey) {
     const err = new Error('未配置 LLM');
@@ -594,14 +698,18 @@ async function generateLessonForUser(
   const bank = bankId ? await bankService.getBank(bankId) : null;
   const bankCode = bank?.code || 'business';
   const level = profile.generationLevel || profile.abilityLevel || 'B1';
+  const minutes =
+    plan?.dailyMinutes || profile.dailyMinutes || DEFAULT_MINUTES;
+  // 与计划预估同口径：minutes/8*12，夹到 8–30
+  const desired =
+    targetCount != null && Number(targetCount) > 0
+      ? Math.round(Number(targetCount))
+      : targetCountFromMinutes(minutes);
   const reviewLemmas = await wordLifecycleService.pickDueForLesson(userId, {
     limit: wordLifecycleService.IN_ARTICLE_REVIEW_CAP,
   });
-  // 目标词略少更易写进短文；复习词不占目标词名额、选词时一并排除
-  const newCount = Math.max(
-    8,
-    Math.min(12, Number(targetCount) || 10) - reviewLemmas.length,
-  );
+  // 复习词不占目标词名额、选词时一并排除；至少留 6 个新词保证成文
+  const newCount = Math.max(6, desired - reviewLemmas.length);
   const usedLemmas = await usedTargetLemmas(userId, { exceptLessonId });
   const cursorOrd = (plan?.cursorOrd || 0) + lemmaOffset;
   const reviewSet = new Set(reviewLemmas.map(cleanLemma).filter(Boolean));
@@ -664,9 +772,17 @@ async function generateLessonForUser(
         : check.errors.slice(0, 3).join('；');
     } catch (err) {
       lastErrors = [err.message];
-      // 超时 / 网关错误不再重试，避免连等数分钟
+      // 超时 / 网关错误不再重试，避免连等数分钟；JSON 截断可再试一次
       if (err.code === 'LLM_TIMEOUT' || err.code === 'LLM_ERROR') throw err;
-      if (attempt === retryMax) throw err;
+      if (attempt === retryMax) {
+        if (
+          err.code === 'LLM_TRUNCATED' ||
+          err.code === 'LLM_BAD_JSON'
+        ) {
+          err.message = err.message || '生成失败，请重试';
+        }
+        throw err;
+      }
     }
   }
 
@@ -681,4 +797,5 @@ module.exports = {
   validateLesson,
   normalizeLesson,
   ensureTargetCoverage,
+  stripInjectedTargetZhTail,
 };

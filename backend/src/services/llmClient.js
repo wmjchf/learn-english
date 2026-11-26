@@ -75,7 +75,8 @@ async function chatCompletion({
     throw err;
   }
 
-  const content = data?.choices?.[0]?.message?.content;
+  const choice = data?.choices?.[0];
+  const content = choice?.message?.content;
   if (content == null) {
     const err = new Error('LLM 返回空内容');
     err.status = 502;
@@ -84,28 +85,46 @@ async function chatCompletion({
     throw err;
   }
 
+  const finishReason = choice?.finish_reason || choice?.finishReason || null;
   const ms = Date.now() - started;
   const usage = data.usage || null;
   console.log(
     `[llm] ${resolvedModel} ${ms}ms` +
-      (usage?.total_tokens ? ` tokens=${usage.total_tokens}` : ''),
+      (usage?.total_tokens ? ` tokens=${usage.total_tokens}` : '') +
+      (finishReason ? ` finish=${finishReason}` : ''),
   );
 
   return {
     content: String(content),
     model: data.model || resolvedModel,
     usage,
+    finishReason,
     raw: data,
     latencyMs: ms,
   };
 }
 
 /** Extract JSON object/array from model text (tolerates markdown fences). */
-function parseJsonContent(content) {
+function parseJsonContent(content, { finishReason = null } = {}) {
   const raw = String(content || '').trim();
   const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const text = fenced ? fenced[1].trim() : raw;
-  return JSON.parse(text);
+  try {
+    return JSON.parse(text);
+  } catch (cause) {
+    const truncated =
+      finishReason === 'length' ||
+      /Unterminated string|Unexpected end of JSON/i.test(
+        String(cause?.message || ''),
+      );
+    const err = new Error(
+      truncated ? '生成内容过长被截断，请重试' : '模型返回格式异常，请重试',
+    );
+    err.status = 502;
+    err.code = truncated ? 'LLM_TRUNCATED' : 'LLM_BAD_JSON';
+    err.cause = cause;
+    throw err;
+  }
 }
 
 module.exports = { chatCompletion, parseJsonContent };

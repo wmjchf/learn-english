@@ -460,23 +460,14 @@ class _LessonArticlePageState extends State<LessonArticlePage> {
                       child: Text(
                         lesson.theme,
                         style: const TextStyle(
-                          fontSize: 16,
+                          fontSize: 20,
                           fontWeight: FontWeight.w700,
                           color: _text,
-                          height: 22 / 16,
+                          height: 26 / 20,
                         ),
                       ),
                     ),
                   ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  lesson.listLabel,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: _muted,
-                    height: 18 / 13,
-                  ),
                 ),
                 const SizedBox(height: 8),
                 Container(

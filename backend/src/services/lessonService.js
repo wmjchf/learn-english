@@ -26,6 +26,18 @@ function parseContent(row) {
       content = {};
     }
   }
+  // 读出时清掉曾为过校验塞进中译文末的目标词表
+  if (content?.article?.zhPlain) {
+    content = {
+      ...content,
+      article: {
+        ...content.article,
+        zhPlain: lessonGenerateService.stripInjectedTargetZhTail(
+          content.article.zhPlain,
+        ),
+      },
+    };
+  }
   return {
     id: row.id,
     userId: row.user_id,

@@ -3,11 +3,15 @@ import 'package:app_starter/core/network/api_client.dart';
 import 'package:app_starter/core/theme/app_colors.dart';
 import 'package:app_starter/core/ui/app_toast.dart';
 import 'package:app_starter/features/auth/auth_repository.dart';
+import 'package:app_starter/features/onboarding/bank_models.dart';
+import 'package:app_starter/features/onboarding/bank_repository.dart';
 import 'package:app_starter/features/onboarding/guide_page.dart';
+import 'package:app_starter/features/onboarding/plan_repository.dart';
 import 'package:app_starter/features/onboarding/self_assess_page.dart';
 import 'package:app_starter/features/profile/edit_profile_page.dart';
 import 'package:app_starter/features/profile/me_models.dart';
 import 'package:app_starter/features/profile/me_repository.dart';
+import 'package:app_starter/features/profile/plan_edit_sheets.dart';
 import 'package:app_starter/core/ui/app_buttons.dart';
 import 'package:app_starter/core/ui/app_haptics.dart';
 
@@ -22,9 +26,13 @@ class MePage extends StatefulWidget {
 class _MePageState extends State<MePage> {
   final _repo = MeRepository();
   final _auth = AuthRepository();
+  final _banks = BankRepository();
+  final _plans = PlanRepository();
 
   MeSummary? _me;
+  List<WordBank> _bankList = const [];
   bool _loading = true;
+  bool _busy = false;
   String? _error;
 
   static const _bg = Color(0xFFF8FAFC);
@@ -34,11 +42,31 @@ class _MePageState extends State<MePage> {
   static const _blue = Color(0xFF7AC70C);
   static const _border = Color(0xFFE2E8F0);
   static const _divider = Color(0xFFF1F5F9);
+  static const _minuteOptions = [10, 15, 20, 30, 45, 60];
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  String get _planLine {
+    final m = _me?.profile?.dailyMinutes;
+    final d = _me?.profile?.targetDays;
+    if (m == null) return '未设置';
+    if (d == null) return '$m 分钟';
+    return '$m 分钟 · 约 $d 天';
+  }
+
+  String get _bankTitle {
+    final id = _me?.profile?.primaryBankId;
+    if (id != null) {
+      for (final b in _bankList) {
+        if (b.id == id) return b.title;
+      }
+    }
+    final heroTitle = _me?.hero.bankTitle ?? '';
+    return heroTitle.isEmpty ? '未选词库' : heroTitle;
   }
 
   Future<void> _load() async {
@@ -47,10 +75,14 @@ class _MePageState extends State<MePage> {
       _error = null;
     });
     try {
-      final me = await _repo.fetch();
+      final results = await Future.wait([
+        _repo.fetch(),
+        _banks.list(),
+      ]);
       if (!mounted) return;
       setState(() {
-        _me = me;
+        _me = results[0] as MeSummary;
+        _bankList = results[1] as List<WordBank>;
         _loading = false;
       });
     } catch (e) {
@@ -59,6 +91,96 @@ class _MePageState extends State<MePage> {
         _loading = false;
         _error = e is ApiException ? e.message : '加载失败';
       });
+    }
+  }
+
+  Future<void> _editDaily() async {
+    final profile = _me?.profile;
+    if (profile == null || _busy) return;
+    final result = await showModalBottomSheet<DailyPick>(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      barrierColor: const Color(0x66000000),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => DailyPickerSheet(
+        minutes: profile.dailyMinutes ?? 20,
+        days: profile.targetDays ?? 1,
+        options: _minuteOptions,
+        estimate: (minutes) => _plans.estimate(minutes: minutes),
+      ),
+    );
+    if (result == null || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      await _plans.confirm(minutes: result.minutes, days: result.days);
+      if (!mounted) return;
+      await _load();
+      if (!mounted) return;
+      AppToast.show(context, '计划已更新');
+    } catch (e) {
+      if (!mounted) return;
+      AppToast.show(context, e is ApiException ? e.message : '更新失败');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _editBank() async {
+    if (_bankList.isEmpty || _busy) return;
+    final picked = await showModalBottomSheet<WordBank>(
+      context: context,
+      useRootNavigator: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      barrierColor: const Color(0x66000000),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => BankPickerSheet(
+        items: _bankList,
+        selectedId: _me?.profile?.primaryBankId,
+      ),
+    );
+    if (picked == null || !mounted) return;
+    if (picked.id == _me?.profile?.primaryBankId) return;
+
+    final ok = await showDialog<bool>(
+      context: context,
+      useRootNavigator: true,
+      barrierColor: const Color(0x66000000),
+      builder: (ctx) => AlertDialog(
+        title: Text('切换到「${picked.title}」？'),
+        content: const Text('切换后会重算预估天数；已学进度按词保留，不按旧计划天数回溯。'),
+        actions: [
+          AppTextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
+          AppFilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('确认切换'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    setState(() => _busy = true);
+    try {
+      final res = await _banks.switchBank(picked.id);
+      if (!mounted) return;
+      await _load();
+      if (!mounted) return;
+      AppToast.show(context, '已切换到 ${res.bank.title}');
+    } catch (e) {
+      if (!mounted) return;
+      AppToast.show(context, e is ApiException ? e.message : '切换失败');
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -275,6 +397,38 @@ class _MePageState extends State<MePage> {
                           ],
                         ),
                         const SizedBox(height: 16),
+                        const Text(
+                          '计划',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: _meta,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: _border),
+                          ),
+                          child: Column(
+                            children: [
+                              _SettingRow(
+                                title: '每日时间',
+                                subtitle: _planLine,
+                                onTap: _busy ? null : _editDaily,
+                              ),
+                              const Divider(height: 1, color: _divider),
+                              _SettingRow(
+                                title: '主词库',
+                                subtitle: _bankTitle,
+                                onTap: _busy ? null : _editBank,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
                         Container(
                           decoration: BoxDecoration(
                             color: Colors.white,
@@ -457,17 +611,17 @@ class _SettingRow extends StatelessWidget {
   const _SettingRow({
     required this.title,
     required this.subtitle,
-    required this.onTap,
+    this.onTap,
   });
 
   final String title;
   final String subtitle;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: withHaptic(onTap),
+      onTap: onTap == null ? null : withHaptic(onTap!),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(

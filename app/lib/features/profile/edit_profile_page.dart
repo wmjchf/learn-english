@@ -1,12 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:app_starter/core/network/api_client.dart';
 import 'package:app_starter/core/ui/app_toast.dart';
-import 'package:app_starter/features/onboarding/bank_models.dart';
-import 'package:app_starter/features/onboarding/bank_repository.dart';
 import 'package:app_starter/features/onboarding/catalog_models.dart';
 import 'package:app_starter/features/onboarding/catalog_repository.dart';
-import 'package:app_starter/features/onboarding/plan_models.dart';
-import 'package:app_starter/features/onboarding/plan_repository.dart';
 import 'package:app_starter/features/onboarding/self_assess_page.dart';
 import 'package:app_starter/features/onboarding/widgets/option_tile_grid.dart';
 import 'package:app_starter/features/profile/me_models.dart';
@@ -30,15 +26,11 @@ class _EditProfilePageState extends State<EditProfilePage> {
   final _profileRepo = ProfileRepository();
   final _meRepo = MeRepository();
   final _catalog = CatalogRepository();
-  final _banks = BankRepository();
-  final _plans = PlanRepository();
 
   UserProfile? _profile;
   CatalogList? _interests;
   CatalogList? _scenes;
   CatalogList? _jobs;
-  List<WordBank> _bankList = const [];
-  WordBank? _bank;
   bool _loading = true;
   bool _busy = false;
   bool _changed = false;
@@ -56,7 +48,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
   static const _divider = Color(0xFFF1F5F9);
   static const _chevron = Color(0xFFCBD5E1);
   static const _levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
-  static const _minuteOptions = [10, 15, 20, 30, 45, 60];
 
   @override
   void initState() {
@@ -75,27 +66,13 @@ class _EditProfilePageState extends State<EditProfilePage> {
         _catalog.interests(),
         _catalog.scenes(),
         _catalog.jobs(),
-        _banks.list(),
       ]);
       if (!mounted) return;
-      final profile = results[0] as UserProfile;
-      final banks = results[4] as List<WordBank>;
-      WordBank? bank;
-      if (profile.primaryBankId != null) {
-        for (final b in banks) {
-          if (b.id == profile.primaryBankId) {
-            bank = b;
-            break;
-          }
-        }
-      }
       setState(() {
-        _profile = profile;
+        _profile = results[0] as UserProfile;
         _interests = results[1] as CatalogList;
         _scenes = results[2] as CatalogList;
         _jobs = results[3] as CatalogList;
-        _bankList = banks;
-        _bank = bank;
         _loading = false;
       });
     } catch (e) {
@@ -153,14 +130,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
       }
     }
     return _profile?.jobRaw?.isNotEmpty == true ? _profile!.jobRaw! : code;
-  }
-
-  String get _planLine {
-    final m = _profile?.dailyMinutes;
-    final d = _profile?.targetDays;
-    if (m == null) return '未设置';
-    if (d == null) return '$m 分钟';
-    return '$m 分钟 · 约 $d 天';
   }
 
   void _markChanged() => _changed = true;
@@ -276,102 +245,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
       'jobCode': result.code,
       'jobRaw': result.raw,
     });
-  }
-
-  Future<void> _editDaily() async {
-    final profile = _profile;
-    if (profile == null) return;
-    final result = await showModalBottomSheet<_DailyPick>(
-      context: context,
-      useRootNavigator: true,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      barrierColor: const Color(0x66000000),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => _DailyPickerSheet(
-        minutes: profile.dailyMinutes ?? 20,
-        days: profile.targetDays ?? 1,
-        options: _minuteOptions,
-        estimate: (minutes) => _plans.estimate(minutes: minutes),
-      ),
-    );
-    if (result == null || !mounted) return;
-    setState(() => _busy = true);
-    try {
-      await _plans.confirm(minutes: result.minutes, days: result.days);
-      if (!mounted) return;
-      _markChanged();
-      await _load();
-      if (!mounted) return;
-      AppToast.show(context, '计划已更新');
-    } catch (e) {
-      if (!mounted) return;
-      AppToast.show(context, e is ApiException ? e.message : '更新失败');
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _editBank() async {
-    if (_bankList.isEmpty) return;
-    final picked = await showModalBottomSheet<WordBank>(
-      context: context,
-      useRootNavigator: true,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      barrierColor: const Color(0x66000000),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => _BankPickerSheet(
-        items: _bankList,
-        selectedId: _profile?.primaryBankId,
-      ),
-    );
-    if (picked == null || !mounted) return;
-    if (picked.id == _profile?.primaryBankId) return;
-
-    final ok = await showDialog<bool>(
-      context: context,
-      useRootNavigator: true,
-      barrierColor: const Color(0x66000000),
-      builder: (ctx) => AlertDialog(
-        title: Text('切换到「${picked.title}」？'),
-        content: const Text('切换后会重算预估天数；已学进度按词保留，不按旧计划天数回溯。'),
-        actions: [
-          AppTextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('取消'),
-          ),
-          AppFilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('确认切换'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true || !mounted) return;
-
-    setState(() => _busy = true);
-    try {
-      final res = await _banks.switchBank(picked.id);
-      if (!mounted) return;
-      setState(() {
-        _bank = res.bank;
-        if (res.profile != null) _profile = res.profile;
-        _busy = false;
-      });
-      _markChanged();
-      await _load();
-      if (!mounted) return;
-      AppToast.show(context, '已切换到 ${res.bank.title}');
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _busy = false);
-      AppToast.show(context, e is ApiException ? e.message : '切换失败');
-    }
   }
 
   Future<void> _patch(Map<String, dynamic> body) async {
@@ -526,31 +399,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 14),
-                            const _SectionLabel('计划'),
-                            const SizedBox(height: 8),
-                            _SettingsCard(
-                              children: [
-                                _NavRow(
-                                  label: '每日时间',
-                                  value: _planLine,
-                                  footnote: '改完实时重算预估天数',
-                                  onTap: _busy ? null : _editDaily,
-                                ),
-                                const Divider(height: 1, color: _divider),
-                                _NavRow(
-                                  label: '主词库',
-                                  value: _bank?.title ??
-                                      widget.hero?.bankTitle ??
-                                      '未选词库',
-                                  footnote: '切换后重算计划；已学进度按词保留',
-                                  onTap: _busy ? null : _editBank,
-                                ),
-                              ],
-                            ),
                             const SizedBox(height: 16),
                             const Text(
-                              '从「我的」进入。难度与词库变更会二次确认。',
+                              '从「我的」进入。难度变更会二次确认。',
                               style: TextStyle(fontSize: 11, color: _meta),
                             ),
                           ],
@@ -1355,254 +1206,3 @@ class _JobPickerSheetState extends State<_JobPickerSheet> {
   }
 }
 
-class _DailyPick {
-  const _DailyPick({required this.minutes, required this.days});
-  final int minutes;
-  final int days;
-}
-
-class _DailyPickerSheet extends StatefulWidget {
-  const _DailyPickerSheet({
-    required this.minutes,
-    required this.days,
-    required this.options,
-    required this.estimate,
-  });
-
-  final int minutes;
-  final int days;
-  final List<int> options;
-  final Future<PlanEstimate> Function(int minutes) estimate;
-
-  @override
-  State<_DailyPickerSheet> createState() => _DailyPickerSheetState();
-}
-
-class _DailyPickerSheetState extends State<_DailyPickerSheet> {
-  late int _minutes;
-  late int _days;
-  bool _estimating = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _minutes = widget.minutes;
-    _days = widget.days;
-  }
-
-  Future<void> _pick(int minutes) async {
-    setState(() {
-      _minutes = minutes;
-      _estimating = true;
-    });
-    try {
-      final est = await widget.estimate(minutes);
-      if (!mounted) return;
-      setState(() {
-        _days = est.days;
-        _estimating = false;
-      });
-    } catch (_) {
-      if (mounted) setState(() => _estimating = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bottom = MediaQuery.paddingOf(context).bottom;
-    return Padding(
-      padding: EdgeInsets.fromLTRB(20, 16, 20, 16 + bottom),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text(
-            '每日时间',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: _EditProfilePageState._text,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            _estimating ? '正在重算…' : '约 $_days 天完成当前词库',
-            style: const TextStyle(
-              fontSize: 13,
-              color: _EditProfilePageState._muted,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: widget.options.map((m) {
-              final selected = m == _minutes;
-              return GestureDetector(
-                onTap: withHaptic(() => _pick(m), select: true),
-                child: Container(
-                  width: 96,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  decoration: BoxDecoration(
-                    color: selected
-                        ? _EditProfilePageState._blueSoft
-                        : _EditProfilePageState._bg,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: selected
-                          ? _EditProfilePageState._blue
-                          : _EditProfilePageState._border,
-                    ),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    '$m 分钟',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: selected
-                          ? _EditProfilePageState._blue
-                          : _EditProfilePageState._text,
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 48,
-            child: AppFilledButton(
-              onPressed: _estimating
-                  ? null
-                  : () => Navigator.pop(
-                        context,
-                        _DailyPick(minutes: _minutes, days: _days),
-                      ),
-              style: AppFilledButton.styleFrom(
-                backgroundColor: _EditProfilePageState._blue,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: const Text(
-                '保存',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _BankPickerSheet extends StatelessWidget {
-  const _BankPickerSheet({required this.items, this.selectedId});
-
-  final List<WordBank> items;
-  final int? selectedId;
-
-  @override
-  Widget build(BuildContext context) {
-    final bottom = MediaQuery.paddingOf(context).bottom;
-    return Padding(
-      padding: EdgeInsets.fromLTRB(20, 16, 20, 16 + bottom),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text(
-            '主词库',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: _EditProfilePageState._text,
-            ),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            '切换后重算计划；已学进度按词保留',
-            style: TextStyle(
-              fontSize: 13,
-              color: _EditProfilePageState._muted,
-            ),
-          ),
-          const SizedBox(height: 12),
-          ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight: MediaQuery.sizeOf(context).height * 0.5,
-            ),
-            child: ListView.separated(
-              shrinkWrap: true,
-              itemCount: items.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 8),
-              itemBuilder: (context, i) {
-                final bank = items[i];
-                final selected = bank.id == selectedId;
-                return Material(
-                  color: selected
-                      ? _EditProfilePageState._blueSoft
-                      : _EditProfilePageState._bg,
-                  borderRadius: BorderRadius.circular(12),
-                  child: InkWell(
-                    onTap: withHaptic(() => Navigator.pop(context, bank), select: true),
-                    borderRadius: BorderRadius.circular(12),
-                    child: Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: selected
-                              ? _EditProfilePageState._blue
-                              : _EditProfilePageState._border,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  bank.title,
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    color: selected
-                                        ? _EditProfilePageState._blue
-                                        : _EditProfilePageState._text,
-                                  ),
-                                ),
-                                if (bank.subtitle != null &&
-                                    bank.subtitle!.isNotEmpty) ...[
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    bank.subtitle!,
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: _EditProfilePageState._muted,
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                          if (selected)
-                            const Icon(
-                              Icons.check,
-                              color: _EditProfilePageState._blue,
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
